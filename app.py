@@ -3,19 +3,22 @@ import pandas as pd
 import plotly.express as px
 
 # --- Load data ---
+import pandas as pd
+import streamlit as st
+import os
+
 @st.cache_data
 def load_data():
-    df = pd.read_excel("homes_first_survey.xlsx")
-    return df
+    df_path = os.path.join(os.path.dirname(__file__), "Combined- Cross Analysis.xlsx")
+    try:
+        df = pd.read_excel(df_path)
+        return df
+    except FileNotFoundError:
+        st.error(f"File not found: {df_path}. Please make sure the Excel file is in the app folder.")
+        return pd.DataFrame()  # return empty DataFrame if not found
 
 df = load_data()
-st.set_page_config(page_title="Staff Experience Dashboard", layout="wide")
 
-# --- Header ---
-st.title("Staff Experience & Job Fulfillment")
-st.markdown("""
-Cross-analysis of organizational and demographic factors influencing staff experience.
-""")
 
 # --- Key Indicators ---
 total_responses = len(df)
