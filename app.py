@@ -9,11 +9,13 @@ st.set_page_config(page_title="Survey Cross-Analysis", page_icon="📊", layout=
 # --- Load Data ---
 @st.cache_data
 def load_data():
-    df = pd.read_excel('/mnt/data/Combined- Cross Analysis.xlsx')
+    # Use relative path to Excel file in repo
+    df = pd.read_excel("Combined- Cross Analysis.xlsx")
     df.columns = [
         'Role', 'Ethnicity', 'Disability', 'Work_Fulfillment',
         'Recommendation_Score', 'Recognition', 'Growth_Potential'
     ]
+    # Filter target roles
     target_roles = [
         "Administrator",
         "Coordinator",
@@ -40,9 +42,10 @@ st.sidebar.header("🔍 Filter Data")
 roles = ['All'] + sorted(df['Role'].unique().tolist())
 selected_role = st.sidebar.selectbox("Role/Department", roles)
 
+# Extract all ethnicities (explode multi-select)
 ethnicities = ['All'] + sorted(set(sum(df['Ethnicity'].dropna().str.split(','), [])))
 ethnicities = [e.strip() for e in ethnicities]
-selected_ethnicity = st.sidebar.selectbox("Ethnicity", ['All'] + ethnicities)
+selected_ethnicity = st.sidebar.selectbox("Ethnicity", ethnicities)
 
 # --- Apply Filters ---
 filtered_df = df.copy()
