@@ -14,11 +14,11 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
-# LOAD DATA (FROM REPO FILE)
+# LOAD DATA
 # -------------------------------------------------
 @st.cache_data
 def load_data():
-   df = pd.read_excel("Combined- Cross Analysis.xlsx")
+    df = pd.read_excel("Combined- Cross Analysis.xlsx")
     df = df.iloc[:, :7]
     df.columns = [
         "Role",
@@ -34,7 +34,7 @@ def load_data():
 df = load_data()
 
 # -------------------------------------------------
-# ROLE FILTER (FIXED LIST)
+# ROLE FILTER
 # -------------------------------------------------
 target_roles = [
     "Administrator",
@@ -94,10 +94,12 @@ df["Growth_Short"] = df["Growth"].map(growth_map)
 # HEADER
 # -------------------------------------------------
 st.title("📊 Homes First – Staff Experience Cross-Analysis")
-st.markdown("Analysis across role, ethnicity, disability, fulfillment, recommendation, recognition and growth.")
+st.markdown(
+    "Professional analysis across role, fulfillment, recommendation, recognition, growth, ethnicity, and disability."
+)
 
 # -------------------------------------------------
-# METRICS
+# KPI METRICS
 # -------------------------------------------------
 col1, col2, col3, col4 = st.columns(4)
 
@@ -114,7 +116,11 @@ with col3:
     st.metric("NPS", f"{nps:.0f}")
 
 with col4:
-    high_fulfillment = df["Work_Fulfillment"].str.contains("extremely", case=False, na=False).mean() * 100
+    high_fulfillment = (
+        df["Work_Fulfillment"]
+        .str.contains("extremely", case=False, na=False)
+        .mean() * 100
+    )
     st.metric("Highly Fulfilled", f"{high_fulfillment:.0f}%")
 
 st.divider()
@@ -129,12 +135,13 @@ fulfill_cross = (
 fig_fulfill = px.bar(
     fulfill_cross,
     orientation="h",
-    height=600,
+    height=650,
     title="Work Fulfillment Distribution by Role (%)"
 )
+
 fig_fulfill.update_layout(
     legend_title="Fulfillment Level",
-    bargap=0.15
+    bargap=0.18
 )
 
 st.plotly_chart(fig_fulfill, use_container_width=True)
@@ -142,67 +149,81 @@ st.plotly_chart(fig_fulfill, use_container_width=True)
 st.divider()
 
 # -------------------------------------------------
-# RECOGNITION & GROWTH – FIXED LAYOUT + CONTRAST
+# HEATMAP FUNCTION WITH PROPER CONTRAST
 # -------------------------------------------------
-st.markdown("## 🌟 Recognition & Growth Sentiment Across Roles")
-st.markdown("<div style='margin-bottom:25px;'></div>", unsafe_allow_html=True)
-
-recog_cross = pd.crosstab(
-    df["Role"], df["Recognition_Short"], normalize="index"
-) * 100
-
-growth_cross = pd.crosstab(
-    df["Role"], df["Growth_Short"], normalize="index"
-) * 100
-
-def contrast_color(value):
-    return "white" if value >= 45 else "black"
-
-def heatmap(fig_data, title):
-    z = fig_data.values
-    text_colors = [
-        [contrast_color(v) for v in row] for row in z
-    ]
+def heatmap_with_annotations(df_cross, title):
+    z = df_cross.values
+    x = df_cross.columns
+    y = df_cross.index
 
     fig = go.Figure(
         data=go.Heatmap(
             z=z,
-            x=fig_data.columns,
-            y=fig_data.index,
+            x=x,
+            y=y,
             colorscale="RdYlGn",
-            text=np.round(z, 0),
-            texttemplate="%{text}%",
-            textfont=dict(color=text_colors),
             hovertemplate="%{y}<br>%{x}: %{z:.1f}%<extra></extra>"
         )
     )
 
+    # Dynamic annotations (THIS fixes contrast correctly)
+    annotations = []
+    for i, role in enumerate(y):
+        for j, col in enumerate(x):
+            value = z[i][j]
+            color = "white" if value >= 45 else "black"
+            annotations.append(
+                dict(
+                    x=col,
+                    y=role,
+                    text=f"{value:.0f}%",
+                    showarrow=False,
+                    font=dict(color=color, size=12)
+                )
+            )
+
     fig.update_layout(
         title=title,
-        height=650,
-        margin=dict(t=110, l=240, r=40, b=40),
+        annotations=annotations,
+        height=680,
+        margin=dict(t=120, l=260, r=40, b=40),
         yaxis=dict(autorange="reversed")
     )
+
     return fig
+
+# -------------------------------------------------
+# RECOGNITION & GROWTH HEATMAPS
+# -------------------------------------------------
+st.markdown("## 🌟 Recognition & Growth Sentiment Across Roles")
+st.markdown("<div style='margin-bottom:30px'></div>", unsafe_allow_html=True)
+
+recog_cross = (
+    pd.crosstab(df["Role"], df["Recognition_Short"], normalize="index") * 100
+)
+
+growth_cross = (
+    pd.crosstab(df["Role"], df["Growth_Short"], normalize="index") * 100
+)
 
 col1, col2 = st.columns(2)
 
 with col1:
     st.plotly_chart(
-        heatmap(recog_cross, "Recognition Sentiment by Role (%)"),
+        heatmap_with_annotations(recog_cross, "Recognition Sentiment by Role (%)"),
         use_container_width=True
     )
 
 with col2:
     st.plotly_chart(
-        heatmap(growth_cross, "Growth Perception by Role (%)"),
+        heatmap_with_annotations(growth_cross, "Growth Perception by Role (%)"),
         use_container_width=True
     )
 
 st.divider()
 
 # -------------------------------------------------
-# ETHNICITY DISTRIBUTION BY ROLE
+# ETHNICITY BY ROLE
 # -------------------------------------------------
 eth_cross = (
     pd.crosstab(df_eth["Role"], df_eth["Ethnicity"], normalize="index") * 100
@@ -211,12 +232,13 @@ eth_cross = (
 fig_eth = px.bar(
     eth_cross,
     orientation="h",
-    height=700,
+    height=750,
     title="Ethnic / Racial Identity Distribution by Role (%)"
 )
+
 fig_eth.update_layout(
     legend_title="Ethnicity",
-    bargap=0.2
+    bargap=0.22
 )
 
 st.plotly_chart(fig_eth, use_container_width=True)
@@ -224,7 +246,7 @@ st.plotly_chart(fig_eth, use_container_width=True)
 st.divider()
 
 # -------------------------------------------------
-# DISABILITY DISTRIBUTION BY ROLE
+# DISABILITY BY ROLE
 # -------------------------------------------------
 dis_cross = (
     pd.crosstab(df_dis["Role"], df_dis["Disability"], normalize="index") * 100
@@ -233,12 +255,13 @@ dis_cross = (
 fig_dis = px.bar(
     dis_cross,
     orientation="h",
-    height=700,
+    height=750,
     title="Disability Identification by Role (%)"
 )
+
 fig_dis.update_layout(
-    legend_title="Disability Type",
-    bargap=0.2
+    legend_title="Disability",
+    bargap=0.22
 )
 
 st.plotly_chart(fig_dis, use_container_width=True)
@@ -248,12 +271,16 @@ st.divider()
 # -------------------------------------------------
 # RECOMMENDATION SCORE BY ROLE
 # -------------------------------------------------
-rec_role = df.groupby("Role")["Recommendation"].mean().sort_values()
+rec_role = (
+    df.groupby("Role")["Recommendation"]
+    .mean()
+    .sort_values()
+)
 
 fig_rec = px.bar(
     rec_role,
     orientation="h",
-    height=600,
+    height=650,
     title="Average Recommendation Score by Role",
     labels={"value": "Score (0–10)", "Role": ""}
 )
