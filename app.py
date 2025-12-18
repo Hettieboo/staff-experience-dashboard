@@ -7,11 +7,11 @@ import seaborn as sns
 # ============================
 # 1. Load the dataset
 # ============================
-# Replace 'homes_first_survey.csv' with your CSV filename in the repo
-df = pd.read_csv('homes_first_survey.csv')
+import pandas as pd
 
-# Preview data
-print(df.head())
+# Load the Excel file
+df = pd.read_excel('Combined- Cross Analysis.xlsx')
+
 
 # ============================
 # 2. Clean multi-select columns
