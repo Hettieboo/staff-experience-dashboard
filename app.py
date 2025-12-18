@@ -1,40 +1,41 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
 
-# Page configuration
-st.set_page_config(page_title="Survey Cross-Analysis", page_icon="📊", layout="wide")
+# -------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------
+st.set_page_config(
+    page_title="Homes First – Staff Experience Dashboard",
+    page_icon="📊",
+    layout="wide"
+)
 
-# Custom CSS
-st.markdown("""
-    <style>
-    .main {padding: 0rem 1rem;}
-    h1 {color: #2c3e50; padding-bottom: 10px;}
-    h2 {color: #34495e; padding-top: 15px; padding-bottom: 10px;}
-    </style>
-""", unsafe_allow_html=True)
-
-# Load data
+# -------------------------------------------------
+# LOAD DATA (FROM REPO FILE)
+# -------------------------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_excel('Combined- Cross Analysis.xlsx')
-    df = df.iloc[:, :7]  # Only the first 7 relevant columns
+    df = pd.read_excel("Combined- Cross Analysis.xlsx")
+    df = df.iloc[:, :7]
     df.columns = [
-        'Role', 
-        'Ethnicity', 
-        'Disability', 
-        'Work_Fulfillment', 
-        'Recommendation_Score', 
-        'Recognition', 
-        'Growth_Potential'
+        "Role",
+        "Ethnicity",
+        "Disability",
+        "Work_Fulfillment",
+        "Recommendation",
+        "Recognition",
+        "Growth"
     ]
     return df
 
 df = load_data()
 
-# Filter target roles
+# -------------------------------------------------
+# ROLE FILTER (FIXED LIST)
+# -------------------------------------------------
 target_roles = [
     "Administrator",
     "Coordinator",
@@ -52,131 +53,209 @@ target_roles = [
     "Other (Smaller departments/teams not listed seperately in an effort to maintain confidentiality)"
 ]
 
-df = df[df['Role'].isin(target_roles)]
+df = df[df["Role"].isin(target_roles)]
 
-# Sidebar filters
-st.sidebar.header("🔍 Filter Data")
-roles = ['All'] + sorted(df['Role'].unique().tolist())
-selected_role = st.sidebar.selectbox("Role/Department", roles)
+# -------------------------------------------------
+# MULTI-SELECT HANDLING
+# -------------------------------------------------
+df_eth = df.assign(
+    Ethnicity=df["Ethnicity"].astype(str).str.split(",")
+).explode("Ethnicity")
+df_eth["Ethnicity"] = df_eth["Ethnicity"].str.strip()
 
-ethnicities = ['All'] + sorted(df['Ethnicity'].unique().tolist())
-selected_ethnicity = st.sidebar.selectbox("Ethnicity", ethnicities)
+df_dis = df.assign(
+    Disability=df["Disability"].astype(str).str.split(",")
+).explode("Disability")
+df_dis["Disability"] = df_dis["Disability"].str.strip()
 
-# Apply filters
-filtered_df = df.copy()
-if selected_role != 'All':
-    filtered_df = filtered_df[filtered_df['Role'] == selected_role]
-if selected_ethnicity != 'All':
-    filtered_df = filtered_df[filtered_df['Ethnicity'].str.contains(selected_ethnicity)]
-
-total = len(filtered_df)
-
-# Header
-st.title("📊 Employee Survey Cross-Analysis Dashboard")
-st.markdown("### Comparing Employee Groups Across Survey Questions")
-
-# Metric Cards
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric("Total Responses", total)
-
-with col2:
-    avg_score = filtered_df['Recommendation_Score'].mean()
-    st.metric("Avg Recommendation", f"{avg_score:.1f}/10")
-
-with col3:
-    promoters = len(filtered_df[filtered_df['Recommendation_Score'] >= 9])
-    detractors = len(filtered_df[filtered_df['Recommendation_Score'] <= 6])
-    nps = ((promoters - detractors) / total * 100) if total > 0 else 0
-    st.metric("NPS Score", f"{nps:.0f}")
-
-with col4:
-    fulfilled = len(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)])
-    pct = (fulfilled / total * 100) if total > 0 else 0
-    st.metric("Highly Fulfilled", f"{pct:.0f}%")
-
-st.markdown("---")
-
-# === SECTION: Recognition & Growth Sentiment Across Groups ===
-st.markdown("## 🌟 Recognition & Growth Sentiment Across Groups")
-st.markdown("<div style='margin-bottom:15px;'>Sentiment distribution by Role (%)</div>", unsafe_allow_html=True)
-
-# Map Recognition & Growth
-recog_map = {
-    'Yes, I do feel recognized and acknowledged': 'Yes',
-    'I somewhat feel recognized and acknowledged': 'Somewhat',
-    "I do find myself being recognized and acknowledged, but it's rare given the contributions I make": 'Rare',
-    "I don't feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently": 'No (Want More)',
-    "I don't feel recognized and acknowledged but I prefer it that way": 'No (Prefer)'
+# -------------------------------------------------
+# SENTIMENT MAPPING
+# -------------------------------------------------
+recognition_map = {
+    "Yes, I do feel recognized and acknowledged": "Yes",
+    "I somewhat feel recognized and acknowledged": "Somewhat",
+    "I do find myself being recognized and acknowledged, but it's rare given the contributions I make": "Rare",
+    "I don't feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently": "No – Want More",
+    "I don't feel recognized and acknowledged but I prefer it that way": "No – Prefer"
 }
 
 growth_map = {
-    'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
-    'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
-    'Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization': 'Limited',
-    'There is very little potential to grow although I would like to advance my career with Homes First': 'Very Limited',
-    'I am not interested in career growth and prefer to remain in my current role': 'Not Interested'
+    "Yes, I do feel there is potential to grow and I hope to advance my career with Homes First": "Yes",
+    "There is some potential to grow and I hope to advance my career with Homes First": "Some",
+    "Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization": "Limited",
+    "There is very little potential to grow although I would like to advance my career with Homes First": "Very Limited",
+    "I am not interested in career growth and prefer to remain in my current role": "Not Interested"
 }
 
-filtered_df['Recognition_Short'] = filtered_df['Recognition'].map(recog_map)
-filtered_df['Growth_Short'] = filtered_df['Growth_Potential'].map(growth_map)
+df["Recognition_Short"] = df["Recognition"].map(recognition_map)
+df["Growth_Short"] = df["Growth"].map(growth_map)
 
-top_roles = filtered_df['Role'].value_counts().index
+# -------------------------------------------------
+# HEADER
+# -------------------------------------------------
+st.title("📊 Homes First – Staff Experience Cross-Analysis")
+st.markdown("Analysis across role, ethnicity, disability, fulfillment, recommendation, recognition and growth.")
 
-# Crosstabs
+# -------------------------------------------------
+# METRICS
+# -------------------------------------------------
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("Responses", len(df))
+
+with col2:
+    st.metric("Avg Recommendation", f"{df['Recommendation'].mean():.1f} / 10")
+
+with col3:
+    promoters = (df["Recommendation"] >= 9).sum()
+    detractors = (df["Recommendation"] <= 6).sum()
+    nps = ((promoters - detractors) / len(df)) * 100
+    st.metric("NPS", f"{nps:.0f}")
+
+with col4:
+    high_fulfillment = df["Work_Fulfillment"].str.contains("extremely", case=False, na=False).mean() * 100
+    st.metric("Highly Fulfilled", f"{high_fulfillment:.0f}%")
+
+st.divider()
+
+# -------------------------------------------------
+# WORK FULFILLMENT BY ROLE
+# -------------------------------------------------
+fulfill_cross = (
+    pd.crosstab(df["Role"], df["Work_Fulfillment"], normalize="index") * 100
+)
+
+fig_fulfill = px.bar(
+    fulfill_cross,
+    orientation="h",
+    height=600,
+    title="Work Fulfillment Distribution by Role (%)"
+)
+fig_fulfill.update_layout(
+    legend_title="Fulfillment Level",
+    bargap=0.15
+)
+
+st.plotly_chart(fig_fulfill, use_container_width=True)
+
+st.divider()
+
+# -------------------------------------------------
+# RECOGNITION & GROWTH – FIXED LAYOUT + CONTRAST
+# -------------------------------------------------
+st.markdown("## 🌟 Recognition & Growth Sentiment Across Roles")
+st.markdown("<div style='margin-bottom:25px;'></div>", unsafe_allow_html=True)
+
 recog_cross = pd.crosstab(
-    filtered_df['Role'], filtered_df['Recognition_Short'], normalize='index'
+    df["Role"], df["Recognition_Short"], normalize="index"
 ) * 100
+
 growth_cross = pd.crosstab(
-    filtered_df['Role'], filtered_df['Growth_Short'], normalize='index'
+    df["Role"], df["Growth_Short"], normalize="index"
 ) * 100
 
-# Function for dynamic font color based on background
-def font_color(val):
-    if val > 50:
-        return 'white'
-    else:
-        return 'black'
+def contrast_color(value):
+    return "white" if value >= 45 else "black"
 
-# Recognition Heatmap
-fig_recog = go.Figure(go.Heatmap(
-    z=recog_cross.values,
-    x=recog_cross.columns,
-    y=[r[:30] for r in recog_cross.index],
-    colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-    text=np.round(recog_cross.values, 0),
-    texttemplate="%{text}%",
-    textfont=dict(color=[font_color(v) for row in recog_cross.values for v in row]),
-    hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
-))
-fig_recog.update_layout(
-    title="Recognition Sentiment by Role (%)",
-    xaxis_title="Recognition Level",
-    yaxis_title="",
-    height=500,
-    margin=dict(t=100, b=50)
-)
+def heatmap(fig_data, title):
+    z = fig_data.values
+    text_colors = [
+        [contrast_color(v) for v in row] for row in z
+    ]
 
-# Growth Heatmap
-fig_growth = go.Figure(go.Heatmap(
-    z=growth_cross.values,
-    x=growth_cross.columns,
-    y=[r[:30] for r in growth_cross.index],
-    colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-    text=np.round(growth_cross.values, 0),
-    texttemplate="%{text}%",
-    textfont=dict(color=[font_color(v) for row in growth_cross.values for v in row]),
-    hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
-))
-fig_growth.update_layout(
-    title="Growth Potential by Role (%)",
-    xaxis_title="Growth Perception",
-    yaxis_title="",
-    height=500,
-    margin=dict(t=100, b=50)
-)
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=z,
+            x=fig_data.columns,
+            y=fig_data.index,
+            colorscale="RdYlGn",
+            text=np.round(z, 0),
+            texttemplate="%{text}%",
+            textfont=dict(color=text_colors),
+            hovertemplate="%{y}<br>%{x}: %{z:.1f}%<extra></extra>"
+        )
+    )
+
+    fig.update_layout(
+        title=title,
+        height=650,
+        margin=dict(t=110, l=240, r=40, b=40),
+        yaxis=dict(autorange="reversed")
+    )
+    return fig
 
 col1, col2 = st.columns(2)
-col1.plotly_chart(fig_recog, use_container_width=True)
-col2.plotly_chart(fig_growth, use_container_width=True)
+
+with col1:
+    st.plotly_chart(
+        heatmap(recog_cross, "Recognition Sentiment by Role (%)"),
+        use_container_width=True
+    )
+
+with col2:
+    st.plotly_chart(
+        heatmap(growth_cross, "Growth Perception by Role (%)"),
+        use_container_width=True
+    )
+
+st.divider()
+
+# -------------------------------------------------
+# ETHNICITY DISTRIBUTION BY ROLE
+# -------------------------------------------------
+eth_cross = (
+    pd.crosstab(df_eth["Role"], df_eth["Ethnicity"], normalize="index") * 100
+)
+
+fig_eth = px.bar(
+    eth_cross,
+    orientation="h",
+    height=700,
+    title="Ethnic / Racial Identity Distribution by Role (%)"
+)
+fig_eth.update_layout(
+    legend_title="Ethnicity",
+    bargap=0.2
+)
+
+st.plotly_chart(fig_eth, use_container_width=True)
+
+st.divider()
+
+# -------------------------------------------------
+# DISABILITY DISTRIBUTION BY ROLE
+# -------------------------------------------------
+dis_cross = (
+    pd.crosstab(df_dis["Role"], df_dis["Disability"], normalize="index") * 100
+)
+
+fig_dis = px.bar(
+    dis_cross,
+    orientation="h",
+    height=700,
+    title="Disability Identification by Role (%)"
+)
+fig_dis.update_layout(
+    legend_title="Disability Type",
+    bargap=0.2
+)
+
+st.plotly_chart(fig_dis, use_container_width=True)
+
+st.divider()
+
+# -------------------------------------------------
+# RECOMMENDATION SCORE BY ROLE
+# -------------------------------------------------
+rec_role = df.groupby("Role")["Recommendation"].mean().sort_values()
+
+fig_rec = px.bar(
+    rec_role,
+    orientation="h",
+    height=600,
+    title="Average Recommendation Score by Role",
+    labels={"value": "Score (0–10)", "Role": ""}
+)
+
+st.plotly_chart(fig_rec, use_container_width=True)
