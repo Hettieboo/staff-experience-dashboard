@@ -146,7 +146,7 @@ try:
     col1, col2 = st.columns(2)
     
     with col1:
-        # Recognition by Role
+        # Recognition by Role - DIVERGING
         recog_map = {'Yes, I do feel recognized and acknowledged': 'Yes',
                     'I somewhat feel recognized and acknowledged': 'Somewhat',
                     'I do find myself being recognized and acknowledged, but it\'s rare given the contributions I make': 'Rare',
@@ -159,32 +159,56 @@ try:
         role_recog = df_recog[df_recog['Role'].isin(top_roles)]
         recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Short'], normalize='index') * 100
         
-        fig4 = go.Figure()
-        colors_recog = ['#2ecc71', '#f39c12', '#e67e22', '#e74c3c', '#95a5a6']
+        # Calculate positive and negative
+        positive_cols = ['Yes', 'Somewhat']
+        negative_cols = ['Rare', 'No (Want More)', 'No (Prefer)']
         
-        for i, col in enumerate(['Yes', 'Somewhat', 'Rare', 'No (Want More)', 'No (Prefer)']):
+        fig4 = go.Figure()
+        
+        # Negative (left side)
+        for col in negative_cols:
             if col in recog_cross.columns:
+                color = '#e74c3c' if 'No' in col else '#e67e22'
+                fig4.add_trace(go.Bar(
+                    y=[r[:30] for r in recog_cross.index],
+                    x=-recog_cross[col],
+                    name=col,
+                    orientation='h',
+                    marker_color=color,
+                    text=[f'{v:.0f}%' if v > 5 else '' for v in recog_cross[col]],
+                    textposition='inside',
+                    hovertemplate='<b>%{y}</b><br>' + col + ': %{text}<extra></extra>',
+                    customdata=recog_cross[col]
+                ))
+        
+        # Positive (right side)
+        for col in positive_cols:
+            if col in recog_cross.columns:
+                color = '#27ae60' if col == 'Yes' else '#52c77a'
                 fig4.add_trace(go.Bar(
                     y=[r[:30] for r in recog_cross.index],
                     x=recog_cross[col],
                     name=col,
                     orientation='h',
-                    marker_color=colors_recog[i],
-                    text=[f'{v:.0f}%' if v > 8 else '' for v in recog_cross[col]],
+                    marker_color=color,
+                    text=[f'{v:.0f}%' if v > 5 else '' for v in recog_cross[col]],
                     textposition='inside'
                 ))
         
         fig4.update_layout(
-            barmode='stack',
-            title="Recognition by Role (%)",
-            xaxis_title="Percentage", yaxis_title="",
+            barmode='relative',
+            title="Recognition by Role (%) - Negative ← → Positive",
+            xaxis_title="← Negative   |   Positive →",
+            yaxis_title="",
             height=450,
+            xaxis=dict(range=[-100, 100], tickvals=[-100, -50, 0, 50, 100], 
+                      ticktext=['100%', '50%', '0', '50%', '100%']),
             legend=dict(orientation="v", yanchor="top", y=1, xanchor="right", x=1.15)
         )
         st.plotly_chart(fig4, use_container_width=True)
     
     with col2:
-        # Growth Potential by Role
+        # Growth Potential by Role - DIVERGING
         growth_map = {'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
                      'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
                      'Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization': 'Limited',
@@ -198,25 +222,46 @@ try:
         growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Short'], normalize='index') * 100
         
         fig5 = go.Figure()
-        colors_growth = ['#27ae60', '#3498db', '#f39c12', '#e74c3c', '#95a5a6']
         
-        for i, col in enumerate(['Yes', 'Some', 'Limited', 'Very Limited', 'Not Interested']):
+        positive_growth = ['Yes', 'Some']
+        negative_growth = ['Limited', 'Very Limited', 'Not Interested']
+        
+        # Negative (left)
+        for col in negative_growth:
             if col in growth_cross.columns:
+                color = '#e74c3c' if 'Very Limited' in col else '#e67e22' if 'Limited' in col else '#95a5a6'
+                fig5.add_trace(go.Bar(
+                    y=[r[:30] for r in growth_cross.index],
+                    x=-growth_cross[col],
+                    name=col,
+                    orientation='h',
+                    marker_color=color,
+                    text=[f'{v:.0f}%' if v > 5 else '' for v in growth_cross[col]],
+                    textposition='inside'
+                ))
+        
+        # Positive (right)
+        for col in positive_growth:
+            if col in growth_cross.columns:
+                color = '#27ae60' if col == 'Yes' else '#52c77a'
                 fig5.add_trace(go.Bar(
                     y=[r[:30] for r in growth_cross.index],
                     x=growth_cross[col],
                     name=col,
                     orientation='h',
-                    marker_color=colors_growth[i],
-                    text=[f'{v:.0f}%' if v > 8 else '' for v in growth_cross[col]],
+                    marker_color=color,
+                    text=[f'{v:.0f}%' if v > 5 else '' for v in growth_cross[col]],
                     textposition='inside'
                 ))
         
         fig5.update_layout(
-            barmode='stack',
-            title="Growth Potential by Role (%)",
-            xaxis_title="Percentage", yaxis_title="",
+            barmode='relative',
+            title="Growth Potential by Role (%) - Negative ← → Positive",
+            xaxis_title="← Negative   |   Positive →",
+            yaxis_title="",
             height=450,
+            xaxis=dict(range=[-100, 100], tickvals=[-100, -50, 0, 50, 100],
+                      ticktext=['100%', '50%', '0', '50%', '100%']),
             legend=dict(orientation="v", yanchor="top", y=1, xanchor="right", x=1.15)
         )
         st.plotly_chart(fig5, use_container_width=True)
@@ -262,35 +307,78 @@ try:
     col1, col2 = st.columns(2)
     
     with col1:
-        # Disability distribution
+        # Disability distribution - Better donut
         dis_counts = df['Disability'].value_counts().head(6)
         dis_map = {'I do not identify as an individual living with a disability/disabilities.': 'No Disability',
-                  'I do identify as an individual living with a disability/disabilities but I prefer not to specify the type of disability/disabilities': 'Yes (Not Specified)'}
-        dis_labels = [dis_map.get(x, x[:25]) for x in dis_counts.index]
+                  'I do identify as an individual living with a disability/disabilities but I prefer not to specify the type of disability/disabilities': 'Yes (Not Specified)',
+                  'Mental health related': 'Mental Health',
+                  'Mobility': 'Mobility',
+                  'Other (Please specify in text box)': 'Other',
+                  'Seeing': 'Seeing'}
+        dis_labels = [dis_map.get(x, x[:20]) for x in dis_counts.index]
         
         fig7 = go.Figure(go.Pie(
             labels=dis_labels,
             values=dis_counts.values,
             hole=0.4,
-            marker=dict(colors=px.colors.sequential.Purples)
+            marker=dict(colors=px.colors.sequential.Purples),
+            textposition='outside',
+            textinfo='label+percent',
+            textfont=dict(size=11)
         ))
-        fig7.update_traces(textposition='inside', textinfo='percent+label')
-        fig7.update_layout(title="Disability Status Distribution", height=400)
+        fig7.update_layout(
+            title="Disability Status Distribution",
+            height=400,
+            showlegend=False
+        )
         st.plotly_chart(fig7, use_container_width=True)
     
     with col2:
-        # Score by disability
+        # Score by disability - RED to GREEN scale
         dis_avg = df.groupby('Disability')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
-        dis_avg = dis_avg[dis_avg['count'] >= 3].sort_values('mean', ascending=False).head(8)
-        dis_avg['Disability_Short'] = dis_avg['Disability'].map(lambda x: dis_map.get(x, x[:25]))
+        dis_avg = dis_avg[dis_avg['count'] >= 3].sort_values('mean', ascending=True).head(8)
+        dis_avg['Disability_Short'] = dis_avg['Disability'].apply(lambda x: dis_map.get(x, x[:20]))
         
-        fig8 = px.bar(dis_avg, y='Disability_Short', x='mean', orientation='h',
-                     color='mean', color_continuous_scale='RdYlGn',
-                     range_color=[0, 10], text='mean',
-                     title="Avg Score by Disability Status")
-        fig8.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-        fig8.update_layout(xaxis_range=[0, 11], xaxis_title="Avg Score", yaxis_title="", height=400, showlegend=False)
+        # Create color mapping based on score (red=low, yellow=mid, green=high)
+        colors_dis = []
+        for score in dis_avg['mean']:
+            if score < 4:
+                colors_dis.append('#d73027')  # Red
+            elif score < 6:
+                colors_dis.append('#fc8d59')  # Orange
+            elif score < 7:
+                colors_dis.append('#fee08b')  # Yellow
+            elif score < 8:
+                colors_dis.append('#d9ef8b')  # Light green
+            else:
+                colors_dis.append('#91cf60')  # Green
+        
+        fig8 = go.Figure(go.Bar(
+            y=dis_avg['Disability_Short'],
+            x=dis_avg['mean'],
+            orientation='h',
+            marker=dict(color=colors_dis),
+            text=[f'{score:.1f}' for score in dis_avg['mean']],
+            textposition='outside'
+        ))
+        
+        fig8.update_layout(
+            title="Avg Recommendation Score by Disability Status",
+            xaxis_title="Avg Score",
+            yaxis_title="",
+            xaxis=dict(range=[0, 11]),
+            height=400,
+            showlegend=False
+        )
         st.plotly_chart(fig8, use_container_width=True)
+    
+    # Add insight text
+    no_dis_score = df[df['Disability'].str.contains('do not identify', na=False)]['Recommendation_Score'].mean()
+    mental_health_score = df[df['Disability'].str.contains('Mental health', na=False)]['Recommendation_Score'].mean()
+    
+    if not pd.isna(mental_health_score) and not pd.isna(no_dis_score):
+        diff = no_dis_score - mental_health_score
+        st.info(f"💡 **Insight:** Employees with mental health disabilities report lower satisfaction ({mental_health_score:.1f}/10) compared to those without disabilities ({no_dis_score:.1f}/10) — a difference of {diff:.1f} points.")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Cross-Analysis Dashboard v1.0**")
