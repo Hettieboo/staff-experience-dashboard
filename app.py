@@ -114,13 +114,8 @@ try:
     
     st.markdown("---")
     
-    # Visualization selection
     st.sidebar.markdown("---")
-    st.sidebar.header("📊 Visualization Options")
-    chart_type = st.sidebar.radio(
-        "Select Analysis View",
-        ["Overview", "Role Analysis", "Ethnicity Analysis", "Cross-Analysis", "Detailed Metrics"]
-    )
+    st.sidebar.markdown("**Dashboard Version 1.0**")
     
     # OVERVIEW TAB
     if chart_type == "Overview":
