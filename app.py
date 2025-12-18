@@ -199,86 +199,113 @@ try:
     
     st.markdown("---")
     
-    # === SECTION 3: Recognition & Growth - HEATMAPS ===
+    # === SECTION 3: Recognition & Growth - SIMPLIFIED STACKED BARS ===
     st.markdown("## 🌟 Recognition & Growth Sentiment Across Groups")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        # Recognition HEATMAP by Role
-        recog_map = {'Yes, I do feel recognized and acknowledged': 'Yes',
-                    'I somewhat feel recognized and acknowledged': 'Somewhat',
-                    'I do find myself being recognized and acknowledged, but it\'s rare given the contributions I make': 'Rare',
-                    'I don\'t feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently': 'No (Want More)',
-                    'I don\'t feel recognized and acknowledged but I prefer it that way': 'No (Prefer)'}
-        
+        # Recognition - Simplified to 3 categories
         df_recog = df.copy()
-        df_recog['Recognition_Short'] = df_recog['Recognition'].map(recog_map)
+        
+        def categorize_recognition(val):
+            if 'Yes, I do feel' in val or 'somewhat' in val.lower():
+                return 'Positive'
+            elif 'rare' in val.lower() or 'prefer it that way' in val.lower():
+                return 'Neutral'
+            else:
+                return 'Negative'
+        
+        df_recog['Recognition_Simple'] = df_recog['Recognition'].apply(categorize_recognition)
         
         role_recog = df_recog[df_recog['Role'].isin(top_roles)]
-        recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Short'], normalize='index') * 100
+        recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Simple'], normalize='index') * 100
         
-        # Reorder columns positive to negative
-        col_order = ['Yes', 'Somewhat', 'Rare', 'No (Want More)', 'No (Prefer)']
+        # Ensure column order
+        col_order = ['Positive', 'Neutral', 'Negative']
         recog_cross = recog_cross[[col for col in col_order if col in recog_cross.columns]]
         
-        fig4 = go.Figure(go.Heatmap(
-            z=recog_cross.values,
-            x=recog_cross.columns,
-            y=[r[:30] for r in recog_cross.index],
-            colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-            text=[[f'{val:.0f}%' for val in row] for row in recog_cross.values],
-            texttemplate='%{text}',
-            textfont={"size": 11},
-            colorbar=dict(title="%", len=0.5),
-            hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
-        ))
+        fig4 = go.Figure()
+        
+        colors_simple = {'Positive': '#27ae60', 'Neutral': '#f39c12', 'Negative': '#e74c3c'}
+        
+        for col in recog_cross.columns:
+            fig4.add_trace(go.Bar(
+                y=[r[:35] for r in recog_cross.index],
+                x=recog_cross[col],
+                name=col,
+                orientation='h',
+                marker_color=colors_simple[col],
+                text=[f'{v:.0f}%' if v > 8 else '' for v in recog_cross[col]],
+                textposition='inside',
+                textfont=dict(size=13, color='white'),
+                hovertemplate='<b>%{y}</b><br>' + col + ': %{x:.1f}%<extra></extra>'
+            ))
         
         fig4.update_layout(
-            title="Recognition Sentiment by Role (%)",
-            xaxis_title="Recognition Level",
+            barmode='stack',
+            title="Recognition Sentiment by Role",
+            xaxis_title="Percentage",
             yaxis_title="",
-            height=450
+            height=450,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            font=dict(size=11)
         )
         st.plotly_chart(fig4, use_container_width=True)
+        
+        # Add summary
+        avg_positive = recog_cross['Positive'].mean() if 'Positive' in recog_cross.columns else 0
+        st.caption(f"📊 Average Positive Recognition: {avg_positive:.0f}%")
     
     with col2:
-        # Growth HEATMAP by Role
-        growth_map = {'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
-                     'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
-                     'Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization': 'Limited',
-                     'There is very little potential to grow although I would like to advance my career with Homes First': 'Very Limited',
-                     'I am not interested in career growth and prefer to remain in my current role': 'Not Interested'}
-        
+        # Growth - Simplified to 3 categories
         df_growth = df.copy()
-        df_growth['Growth_Short'] = df_growth['Growth_Potential'].map(growth_map)
+        
+        def categorize_growth(val):
+            if 'Yes, I do feel there is potential' in val or 'There is some potential' in val:
+                return 'Positive'
+            elif 'not interested' in val.lower():
+                return 'Neutral'
+            else:
+                return 'Negative'
+        
+        df_growth['Growth_Simple'] = df_growth['Growth_Potential'].apply(categorize_growth)
         
         role_growth = df_growth[df_growth['Role'].isin(top_roles)]
-        growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Short'], normalize='index') * 100
+        growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Simple'], normalize='index') * 100
         
-        # Reorder columns
-        col_order_growth = ['Yes', 'Some', 'Not Interested', 'Very Limited', 'Limited']
-        growth_cross = growth_cross[[col for col in col_order_growth if col in growth_cross.columns]]
+        # Ensure column order
+        growth_cross = growth_cross[[col for col in col_order if col in growth_cross.columns]]
         
-        fig5 = go.Figure(go.Heatmap(
-            z=growth_cross.values,
-            x=growth_cross.columns,
-            y=[r[:30] for r in growth_cross.index],
-            colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-            text=[[f'{val:.0f}%' for val in row] for row in growth_cross.values],
-            texttemplate='%{text}',
-            textfont={"size": 11},
-            colorbar=dict(title="%", len=0.5),
-            hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
-        ))
+        fig5 = go.Figure()
+        
+        for col in growth_cross.columns:
+            fig5.add_trace(go.Bar(
+                y=[r[:35] for r in growth_cross.index],
+                x=growth_cross[col],
+                name=col,
+                orientation='h',
+                marker_color=colors_simple[col],
+                text=[f'{v:.0f}%' if v > 8 else '' for v in growth_cross[col]],
+                textposition='inside',
+                textfont=dict(size=13, color='white'),
+                hovertemplate='<b>%{y}</b><br>' + col + ': %{x:.1f}%<extra></extra>'
+            ))
         
         fig5.update_layout(
-            title="Growth Potential by Role (%)",
-            xaxis_title="Growth Perception",
+            barmode='stack',
+            title="Growth Potential by Role",
+            xaxis_title="Percentage",
             yaxis_title="",
-            height=450
+            height=450,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            font=dict(size=11)
         )
         st.plotly_chart(fig5, use_container_width=True)
+        
+        # Add summary
+        avg_positive_growth = growth_cross['Positive'].mean() if 'Positive' in growth_cross.columns else 0
+        st.caption(f"📊 Average Positive Growth Perception: {avg_positive_growth:.0f}%")
     
     st.markdown("---")
     
