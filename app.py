@@ -32,8 +32,8 @@ col4.metric("Sees Growth", f"{sees_growth:.0f}%")
 st.markdown("---")
 
 # --- Function for clean cross analysis charts ---
-def cross_analysis(factor_col, outcome_col, question_title, positive_responses=None):
-    st.markdown(f"<div style='background-color:#F0F2F6;padding:5px 10px;border-radius:5px;font-weight:bold'>{question_title}</div>", unsafe_allow_html=True)
+def cross_analysis(factor_col, outcome_col, question_title, positive_responses=None, column_width=1):
+    st.markdown(f"<div style='background-color:#F0F2F6;padding:5px 10px;border-radius:5px;font-weight:bold;margin-bottom:5px'>{question_title}</div>", unsafe_allow_html=True)
     
     if positive_responses:
         df_filtered = df[df[outcome_col].isin(positive_responses)]
@@ -53,43 +53,68 @@ def cross_analysis(factor_col, outcome_col, question_title, positive_responses=N
     )
     fig.update_traces(marker_color="#FF6361", textposition='outside')
     fig.update_layout(xaxis_tickangle=-45, margin=dict(l=20, r=20, t=30, b=70))
-    st.plotly_chart(fig, use_container_width=True)
+    return fig
 
-# --- Cross Analysis Examples ---
-# By Role
-cross_analysis(
-    "Select the role/department that best describes your current position at Homes First.",
-    "How fulfilling and rewarding do you find your work?",
-    "Job Fulfillment",
-    positive_responses=[
-        "I find the work I do extremely fulfilling and rewarding",
-        "I find the work I do fulfilling and rewarding in some parts and not so much in others"
-    ]
-)
+# --- Two-column layout ---
+def display_cross_analyses(factor_col, outcome_mapping):
+    for i in range(0, len(outcome_mapping), 2):
+        cols = st.columns(2)
+        for j in range(2):
+            if i+j < len(outcome_mapping):
+                outcome_col, question_title, positive_responses = outcome_mapping[i+j]
+                fig = cross_analysis(factor_col, outcome_col, question_title, positive_responses)
+                cols[j].plotly_chart(fig, use_container_width=True)
 
-cross_analysis(
-    "Select the role/department that best describes your current position at Homes First.",
-    "How likely are you to recommend Homes First as a good place to work?",
-    "Recommendation",
-    positive_responses=[8,9,10]
-)
-
-cross_analysis(
-    "Select the role/department that best describes your current position at Homes First.",
-    "Do you feel you get acknowledged and recognized for your contribution  at work?",
-    "Recognition",
-    positive_responses=[
-        "Yes, I do feel recognized and acknowledged",
-        "I somewhat feel recognized and acknowledged"
-    ]
-)
-
-cross_analysis(
-    "Select the role/department that best describes your current position at Homes First.",
-    "Do you feel there is potential for growth at Homes First?",
-    "Growth Opportunities",
-    positive_responses=["Yes, I do feel there is potential to grow"]
-)
+# --- Cross Analysis by Role ---
+st.subheader("By Role Group")
+role_outcomes = [
+    ("How fulfilling and rewarding do you find your work?",
+     "Job Fulfillment",
+     ["I find the work I do extremely fulfilling and rewarding",
+      "I find the work I do fulfilling and rewarding in some parts and not so much in others"]),
+    ("How likely are you to recommend Homes First as a good place to work?",
+     "Recommendation",
+     [8,9,10]),
+    ("Do you feel you get acknowledged and recognized for your contribution  at work?",
+     "Recognition",
+     ["Yes, I do feel recognized and acknowledged",
+      "I somewhat feel recognized and acknowledged"]),
+    ("Do you feel there is potential for growth at Homes First?",
+     "Growth Opportunities",
+     ["Yes, I do feel there is potential to grow"])
+]
+display_cross_analyses("Select the role/department that best describes your current position at Homes First.", role_outcomes)
 
 st.markdown("---")
-# --- You can repeat cross_analysis for other categories (Race/Ethnicity, Disability) ---
+
+# --- Cross Analysis by Race/Ethnicity ---
+st.subheader("By Racial or Ethnic Identity")
+race_outcomes = [
+    ("How fulfilling and rewarding do you find your work?", "Job Fulfillment",
+     ["I find the work I do extremely fulfilling and rewarding",
+      "I find the work I do fulfilling and rewarding in some parts and not so much in others"]),
+    ("How likely are you to recommend Homes First as a good place to work?", "Recommendation", [8,9,10]),
+    ("Do you feel you get acknowledged and recognized for your contribution  at work?", "Recognition",
+     ["Yes, I do feel recognized and acknowledged",
+      "I somewhat feel recognized and acknowledged"]),
+    ("Do you feel there is potential for growth at Homes First?", "Growth Opportunities",
+     ["Yes, I do feel there is potential to grow"])
+]
+display_cross_analyses("Which racial or ethnic identity/identities best reflect you. (Select all that apply.)", race_outcomes)
+
+st.markdown("---")
+
+# --- Cross Analysis by Disability ---
+st.subheader("By Disability Status")
+disability_outcomes = [
+    ("How fulfilling and rewarding do you find your work?", "Job Fulfillment",
+     ["I find the work I do extremely fulfilling and rewarding",
+      "I find the work I do fulfilling and rewarding in some parts and not so much in others"]),
+    ("How likely are you to recommend Homes First as a good place to work?", "Recommendation", [8,9,10]),
+    ("Do you feel you get acknowledged and recognized for your contribution  at work?", "Recognition",
+     ["Yes, I do feel recognized and acknowledged",
+      "I somewhat feel recognized and acknowledged"]),
+    ("Do you feel there is potential for growth at Homes First?", "Growth Opportunities",
+     ["Yes, I do feel there is potential to grow"])
+]
+display_cross_analyses("Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)", disability_outcomes)
