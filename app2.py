@@ -43,7 +43,7 @@ try:
     df = load_data()
 
     # ----------------------
-    # Column names
+    # Columns from your dataset
     # ----------------------
     role_col = 'Select the role/department that best describes your current position at Homes First.'
     ethnicity_col = 'Which racial or ethnic identity/identities best reflect you. (Select all that apply.)'
@@ -54,12 +54,7 @@ try:
     growth_col = 'Do you feel there is potential for growth at Homes First?'
 
     # ----------------------
-    # Define red-yellow-green gradient manually
-    # ----------------------
-    rdylgn_colors = ['#d73027', '#fc8d59', '#fee08b', '#91cf60', '#1a9850']
-
-    # ----------------------
-    # Sidebar filters
+    # Sidebar Filters
     # ----------------------
     st.sidebar.header("🔍 Filter Data")
     roles = ['All'] + sorted(df[role_col].dropna().unique().tolist())
@@ -71,9 +66,6 @@ try:
     disabilities = ['All'] + sorted(set([d.strip() for sublist in df[disability_col].dropna().str.split(',') for d in sublist]))
     selected_disability = st.sidebar.selectbox("Disability", disabilities)
 
-    # ----------------------
-    # Filter DataFrame
-    # ----------------------
     filtered_df = df.copy()
     if selected_role != 'All':
         filtered_df = filtered_df[filtered_df[role_col] == selected_role]
@@ -85,10 +77,10 @@ try:
     total = len(filtered_df)
 
     # ----------------------
-    # Metrics
+    # Key Metrics
     # ----------------------
     st.title("📊 Employee Survey Cross-Analysis Dashboard")
-    st.markdown("### Compare Employee Groups Across Survey Questions")
+    st.markdown("### Comparing Employee Groups Across Survey Questions")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -120,7 +112,7 @@ try:
                      orientation='h',
                      text=rec_col,
                      color=rec_col,
-                     color_continuous_scale=rdylgn_colors,
+                     color_continuous_scale=['#d73027','#fc8d59','#fee08b','#91cf60','#1a9850'],
                      range_color=[0,10],
                      title="Average Recommendation by Role")
     fig_bar.update_traces(texttemplate='%{text:.1f}', textposition='outside')
@@ -128,78 +120,88 @@ try:
     st.plotly_chart(fig_bar, use_container_width=True)
 
     # ----------------------
+    # Horizontal Bar: Recommendation by Ethnicity
+    # ----------------------
+    eth_avg = filtered_df.groupby(ethnicity_col)[rec_col].mean().reset_index()
+    height = max(400, 60*len(eth_avg)+150)
+    fig_eth = px.bar(eth_avg,
+                     x=rec_col,
+                     y=ethnicity_col,
+                     orientation='h',
+                     text=rec_col,
+                     color=rec_col,
+                     color_continuous_scale=['#d73027','#fc8d59','#fee08b','#91cf60','#1a9850'],
+                     range_color=[0,10],
+                     title="Average Recommendation by Ethnicity")
+    fig_eth.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+    fig_eth.update_layout(height=height, margin=dict(l=250, r=50, t=100, b=50), yaxis=dict(automargin=True))
+    st.plotly_chart(fig_eth, use_container_width=True)
+
+    # ----------------------
     # Donut: Recognition
     # ----------------------
-    fig_donut = px.pie(
-        filtered_df,
-        names=recog_col,
-        title="Recognition Distribution",
-        hole=0.5,
-        color_discrete_sequence=rdylgn_colors
-    )
-    fig_donut.update_traces(
-        textposition='outside',
-        textinfo='percent+label',
-        pull=[0.05]*len(filtered_df[recog_col].unique())
-    )
-    fig_donut.update_layout(
-        height=600,
-        width=600,
-        margin=dict(t=100, b=50, l=50, r=50),
-        title={'x':0.5, 'xanchor':'center'}
-    )
+    recog_counts = filtered_df[recog_col].value_counts().reset_index()
+    recog_counts.columns = ['Recognition', 'Count']
+    fig_donut = px.pie(recog_counts,
+                       names='Recognition',
+                       values='Count',
+                       title="Recognition Distribution",
+                       hole=0.5,
+                       color_discrete_sequence=['#d73027','#fc8d59','#fee08b','#91cf60','#1a9850'])
+    fig_donut.update_traces(textposition='outside', textinfo='percent+label', pull=[0.05]*len(recog_counts))
+    fig_donut.update_layout(height=600, width=600, margin=dict(t=100, b=50, l=50, r=50), title={'x':0.5, 'xanchor':'center'})
     st.plotly_chart(fig_donut, use_container_width=False)
 
     # ----------------------
-    # Stacked Horizontal Bar: Growth Potential
+    # Heatmap: Recognition by Role
+    # ----------------------
+    recog_cross = pd.crosstab(filtered_df[role_col], filtered_df[recog_col], normalize='index')*100
+    fig_heat = go.Figure(go.Heatmap(
+        z=recog_cross.values,
+        x=recog_cross.columns,
+        y=[r[:50] for r in recog_cross.index],
+        colorscale='Viridis',
+        text=[[f'{v:.0f}%' for v in row] for row in recog_cross.values],
+        texttemplate='%{text}',
+        textfont={"size":11},
+        colorbar=dict(title="%", len=0.8),
+        hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
+    ))
+    fig_heat.update_layout(
+        title="Recognition Distribution by Role (%)",
+        xaxis_title="Recognition",
+        yaxis_title="",
+        height=max(400,60*len(recog_cross)+150),
+        margin=dict(l=250,r=50,t=100,b=50)
+    )
+    st.plotly_chart(fig_heat, use_container_width=True)
+
+    # ----------------------
+    # Heatmap: Growth Potential by Role
     # ----------------------
     growth_cross = pd.crosstab(filtered_df[role_col], filtered_df[growth_col], normalize='index')*100
-    fig_stack = go.Figure()
-    for i, col in enumerate(growth_cross.columns):
-        fig_stack.add_trace(go.Bar(
-            y=[r[:50] for r in growth_cross.index],
-            x=growth_cross[col],
-            name=col,
-            orientation='h',
-            marker_color=rdylgn_colors[i % len(rdylgn_colors)],
-            text=[f'{v:.0f}%' if v>=5 else '' for v in growth_cross[col]],
-            textposition='inside'
-        ))
-    height = max(400, 60*len(growth_cross)+150)
-    fig_stack.update_layout(barmode='stack',
-                            xaxis_title="Percentage",
-                            yaxis_title="",
-                            height=height,
-                            margin=dict(l=250, r=50, t=100, b=50),
-                            title="Growth Potential by Role (%)")
-    st.plotly_chart(fig_stack, use_container_width=True)
-
-    # ----------------------
-    # Stacked Horizontal Bar: Work Fulfillment
-    # ----------------------
-    fulfill_cross = pd.crosstab(filtered_df[role_col], filtered_df[work_col], normalize='index')*100
-    fig_fulfill = go.Figure()
-    for i, col in enumerate(fulfill_cross.columns):
-        fig_fulfill.add_trace(go.Bar(
-            y=[r[:50] for r in fulfill_cross.index],
-            x=fulfill_cross[col],
-            name=col,
-            orientation='h',
-            marker_color=rdylgn_colors[i % len(rdylgn_colors)],
-            text=[f'{v:.0f}%' if v>=5 else '' for v in fulfill_cross[col]],
-            textposition='inside'
-        ))
-    height = max(400, 60*len(fulfill_cross)+150)
-    fig_fulfill.update_layout(barmode='stack',
-                              xaxis_title="Percentage",
-                              yaxis_title="",
-                              height=height,
-                              margin=dict(l=250, r=50, t=100, b=50),
-                              title="Work Fulfillment by Role (%)")
-    st.plotly_chart(fig_fulfill, use_container_width=True)
+    fig_growth = go.Figure(go.Heatmap(
+        z=growth_cross.values,
+        x=growth_cross.columns,
+        y=[r[:50] for r in growth_cross.index],
+        colorscale='Viridis',
+        text=[[f'{v:.0f}%' for v in row] for row in growth_cross.values],
+        texttemplate='%{text}',
+        textfont={"size":11},
+        colorbar=dict(title="%", len=0.8),
+        hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
+    ))
+    fig_growth.update_layout(
+        title="Growth Potential by Role (%)",
+        xaxis_title="Growth Perception",
+        yaxis_title="",
+        height=max(400,60*len(growth_cross)+150),
+        margin=dict(l=250,r=50,t=100,b=50)
+    )
+    st.plotly_chart(fig_growth, use_container_width=True)
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Cross-Analysis Dashboard v10.0**")
+    st.sidebar.markdown("**Cross-Analysis Dashboard v2.0**")
 
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
