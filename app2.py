@@ -3,16 +3,23 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
+import textwrap
 
 # ----------------------
 # Global Plotly style
 # ----------------------
-pio.templates.default = "plotly_white"  # clean, consistent base style[web:14]
+pio.templates.default = "plotly_white"
 
 PLOTLY_TEMPLATE = "plotly_white"
 PRIMARY_SEQ = ["#4facfe"]
-SECONDARY_SEQ = ["#00f2fe"]
+SECONDARY_SEQ = ["#00b4d8"]
 NEG_POS_SEQ = ["#d73027", "#fc8d59", "#fee08b", "#91cf60", "#1a9850"]
+
+# Helper to wrap long labels for y-axis
+def wrap_label(label, width=30):
+    if not isinstance(label, str):
+        return label
+    return "<br>".join(textwrap.wrap(label, width=width))
 
 # ----------------------
 # Page configuration
@@ -71,19 +78,27 @@ try:
     roles = ['All'] + sorted(df[role_col].dropna().unique().tolist())
     selected_role = st.sidebar.selectbox("Role/Department", roles)
 
-    ethnicities = ['All'] + sorted(set([e.strip() for sublist in df[ethnicity_col].dropna().str.split(',') for e in sublist]))
+    # explode ethnicity and disability for better filtering
+    def split_multi(series):
+        return sorted(set(
+            e.strip()
+            for sublist in series.dropna().astype(str).str.split(',')
+            for e in sublist if e.strip()
+        ))
+
+    ethnicities = ['All'] + split_multi(df[ethnicity_col])
     selected_ethnicity = st.sidebar.selectbox("Ethnicity", ethnicities)
 
-    disabilities = ['All'] + sorted(set([d.strip() for sublist in df[disability_col].dropna().str.split(',') for d in sublist]))
+    disabilities = ['All'] + split_multi(df[disability_col])
     selected_disability = st.sidebar.selectbox("Disability", disabilities)
 
     filtered_df = df.copy()
     if selected_role != 'All':
         filtered_df = filtered_df[filtered_df[role_col] == selected_role]
     if selected_ethnicity != 'All':
-        filtered_df = filtered_df[filtered_df[ethnicity_col].str.contains(selected_ethnicity, na=False)]
+        filtered_df = filtered_df[filtered_df[ethnicity_col].astype(str).str.contains(selected_ethnicity, na=False)]
     if selected_disability != 'All':
-        filtered_df = filtered_df[filtered_df[disability_col].str.contains(selected_disability, na=False)]
+        filtered_df = filtered_df[filtered_df[disability_col].astype(str).str.contains(selected_disability, na=False)]
 
     total = len(filtered_df)
 
@@ -91,7 +106,7 @@ try:
     # Title & intro
     # ----------------------
     st.title("📊 Employee Survey Cross-Analysis Dashboard")
-    st.markdown("Explore how different employee groups respond across key survey questions such as recommendation, recognition, and growth.")
+    st.markdown("Explore how different employee groups respond across key survey questions such as recommendation, recognition, and growth.[file:21]")
 
     # ----------------------
     # Key Metrics
@@ -121,7 +136,7 @@ try:
         )
 
     with col4:
-        fulfilled = len(filtered_df[filtered_df[work_col].str.contains('extremely', case=False, na=False)]) if total > 0 else 0
+        fulfilled = len(filtered_df[filtered_df[work_col].astype(str).str.contains('extremely', case=False, na=False)]) if total > 0 else 0
         pct = (fulfilled / total * 100) if total > 0 else 0
         st.markdown(
             f"<div class='metric-card metric-card-green'><div class='metric-label'>Highly Fulfilled</div><div class='metric-value'>{pct:.0f}%</div></div>",
@@ -131,11 +146,12 @@ try:
     st.markdown("---")
 
     # ----------------------
-    # Recommendation distribution (0–10)
+    # Recommendation behaviour
     # ----------------------
     st.header("Recommendation behaviour")
-    st.caption("Understand how recommendation scores are distributed and how they vary across roles and ethnicities.[web:19]")
+    st.caption("See how recommendation scores are distributed and how they vary by role and ethnicity.[file:21]")
 
+    # Distribution 0–10
     if total > 0 and filtered_df[rec_col].notna().any():
         rec_dist = (
             filtered_df[rec_col]
@@ -153,7 +169,7 @@ try:
         )
 
         st.subheader("Recommendation score distribution")
-        st.caption("Shows how scores from 0–10 break down into detractors, passives, and promoters for the selected filters.[web:18]")
+        st.caption("Breakdown of scores from 0–10 into detractors, passives, and promoters for the selected filters.[file:21]")
 
         fig_rec_dist = px.bar(
             rec_dist,
@@ -174,13 +190,13 @@ try:
         st.info("No recommendation data for the current filters.")
 
     # ----------------------
-    # Avg Recommendation by Role & Ethnicity
+    # Average recommendation by role & ethnicity
     # ----------------------
     col_a, col_b = st.columns(2)
 
     with col_a:
         st.subheader("Average recommendation by role")
-        st.caption("Higher bars indicate groups more likely to recommend Homes First as a place to work.")
+        st.caption("Higher bars indicate groups more likely to recommend Homes First as a place to work.[file:21]")
 
         if total > 0 and filtered_df[role_col].notna().any():
             role_avg = (
@@ -189,11 +205,12 @@ try:
                 .reset_index()
                 .sort_values(rec_col, ascending=True)
             )
+            role_avg["role_wrapped"] = role_avg[role_col].apply(lambda x: wrap_label(x, 25))
             height = max(400, 40 * len(role_avg) + 150)
             fig_bar = px.bar(
                 role_avg,
                 x=rec_col,
-                y=role_col,
+                y="role_wrapped",
                 orientation="h",
                 text=rec_col,
                 color_discrete_sequence=PRIMARY_SEQ,
@@ -210,21 +227,33 @@ try:
             st.info("No role data for the current filters.")
 
     with col_b:
-        st.subheader("Average recommendation by ethnicity")
-        st.caption("Identifies any equity gaps in likelihood to recommend the organization.[web:19]")
+        st.subheader("Average recommendation by ethnicity (top 10)")
+        st.caption("Top ethnic identities by average likelihood to recommend; long labels are wrapped for readability.[file:21]")
 
         if total > 0 and filtered_df[ethnicity_col].notna().any():
+            # explode multi-ethnicity to treat each component as a row
+            eth_exploded = filtered_df.copy()
+            eth_exploded = eth_exploded.assign(
+                ethnicity_split=eth_exploded[ethnicity_col].astype(str).str.split(',')
+            ).explode('ethnicity_split')
+            eth_exploded['ethnicity_split'] = eth_exploded['ethnicity_split'].str.strip()
+            eth_exploded = eth_exploded[eth_exploded['ethnicity_split'] != ""]
+
             eth_avg = (
-                filtered_df.groupby(ethnicity_col)[rec_col]
+                eth_exploded.groupby('ethnicity_split')[rec_col]
                 .mean()
                 .reset_index()
+                .sort_values(rec_col, ascending=False)
+                .head(10)
                 .sort_values(rec_col, ascending=True)
             )
+            eth_avg["eth_wrapped"] = eth_avg['ethnicity_split'].apply(lambda x: wrap_label(x, 25))
+
             height = max(400, 40 * len(eth_avg) + 150)
             fig_eth = px.bar(
                 eth_avg,
                 x=rec_col,
-                y=ethnicity_col,
+                y="eth_wrapped",
                 orientation="h",
                 text=rec_col,
                 color_discrete_sequence=SECONDARY_SEQ,
@@ -243,27 +272,54 @@ try:
     st.markdown("---")
 
     # ----------------------
-    # Recognition & Growth by Role
+    # Recognition and growth by role (stacked bars)
     # ----------------------
     st.header("Recognition and growth")
-    st.caption("See how recognition and perceived growth potential differ across roles.")
+    st.caption("How recognition and perceived growth potential differ across roles, shown as within-role percentages.[file:21]")
 
     col_left, col_right = st.columns(2)
+
+    # Order recognition categories from negative to positive if present
+    recog_order = [
+        "I don't feel recognized and acknowledged but I prefer it that way",
+        "I don't feel recognized and acknowledged and would prefer staff successes to be highlighted",
+        "I do find myself being recognized and acknowledged, but it's rare given the contributions I make",
+        "I somewhat feel recognized and acknowledged",
+        "Yes, I do feel recognized and acknowledged"
+    ]
+
+    growth_order = [
+        "I am not interested in career growth and prefer to remain in my current role",
+        "Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization",
+        "There is very little potential to grow at Homes First",
+        "There is some potential to grow and I hope to advance my career with Homes First",
+        "Yes, I do feel there is potential to grow at Homes First"
+    ]
 
     # --- Recognition by role: stacked bar ---
     with col_left:
         st.subheader("Recognition distribution by role")
-        st.caption("Shows how recognition responses are distributed within each role (percent of respondents).")
+        st.caption("Each bar sums to 100% and shows how often staff in each role feel recognized.[file:21]")
 
         if total > 0 and filtered_df[role_col].notna().any() and filtered_df[recog_col].notna().any():
             recog_cross_count = pd.crosstab(filtered_df[role_col], filtered_df[recog_col])
+            # enforce category order where possible
+            recog_cols = [c for c in recog_order if c in recog_cross_count.columns] + \
+                         [c for c in recog_cross_count.columns if c not in recog_order]
+            recog_cross_count = recog_cross_count[recog_cols]
+
             recog_prop = (recog_cross_count.div(recog_cross_count.sum(axis=1), axis=0) * 100).reset_index()
-            recog_long = recog_prop.melt(id_vars=role_col, var_name="Recognition", value_name="Percent")
+            recog_prop["role_wrapped"] = recog_prop[role_col].apply(lambda x: wrap_label(x, 25))
+            recog_long = recog_prop.melt(
+                id_vars=[role_col, "role_wrapped"],
+                var_name="Recognition",
+                value_name="Percent"
+            )
 
             fig_rec_stack = px.bar(
                 recog_long,
                 x="Percent",
-                y=role_col,
+                y="role_wrapped",
                 color="Recognition",
                 orientation="h",
                 barmode="stack",
@@ -274,6 +330,7 @@ try:
             fig_rec_stack.update_layout(
                 height=max(400, 45 * recog_prop.shape[0] + 150),
                 margin=dict(l=250, r=40, t=60, b=40),
+                yaxis=dict(automargin=True),
             )
             st.plotly_chart(fig_rec_stack, use_container_width=True)
         else:
@@ -282,17 +339,26 @@ try:
     # --- Growth potential by role: stacked bar ---
     with col_right:
         st.subheader("Growth potential by role")
-        st.caption("Shows how perceptions of growth potential are distributed within each role (percent of respondents).")
+        st.caption("Each bar sums to 100% and shows how staff in each role perceive growth opportunities.[file:21]")
 
         if total > 0 and filtered_df[role_col].notna().any() and filtered_df[growth_col].notna().any():
             growth_cross_count = pd.crosstab(filtered_df[role_col], filtered_df[growth_col])
+            growth_cols = [c for c in growth_order if c in growth_cross_count.columns] + \
+                          [c for c in growth_cross_count.columns if c not in growth_order]
+            growth_cross_count = growth_cross_count[growth_cols]
+
             growth_prop = (growth_cross_count.div(growth_cross_count.sum(axis=1), axis=0) * 100).reset_index()
-            growth_long = growth_prop.melt(id_vars=role_col, var_name="Growth perception", value_name="Percent")
+            growth_prop["role_wrapped"] = growth_prop[role_col].apply(lambda x: wrap_label(x, 25))
+            growth_long = growth_prop.melt(
+                id_vars=[role_col, "role_wrapped"],
+                var_name="Growth perception",
+                value_name="Percent"
+            )
 
             fig_growth_stack = px.bar(
                 growth_long,
                 x="Percent",
-                y=role_col,
+                y="role_wrapped",
                 color="Growth perception",
                 orientation="h",
                 barmode="stack",
@@ -303,6 +369,7 @@ try:
             fig_growth_stack.update_layout(
                 height=max(400, 45 * growth_prop.shape[0] + 150),
                 margin=dict(l=250, r=40, t=60, b=40),
+                yaxis=dict(automargin=True),
             )
             st.plotly_chart(fig_growth_stack, use_container_width=True)
         else:
@@ -311,31 +378,32 @@ try:
     st.markdown("---")
 
     # ----------------------
-    # Optional: Heatmaps for quick scanning
+    # Compact heatmap overview (optional, cleaned)
     # ----------------------
     st.header("Heatmap overview by role")
-    st.caption("Heatmaps provide a compact view of how response distributions differ across roles.[web:18]")
+    st.caption("Compact view of how recognition and growth distributions differ across roles.[file:21]")
 
     # Recognition heatmap
     if total > 0 and filtered_df[role_col].notna().any() and filtered_df[recog_col].notna().any():
         recog_cross = pd.crosstab(filtered_df[role_col], filtered_df[recog_col], normalize='index') * 100
+        recog_cross = recog_cross[recog_cross.columns.intersection(recog_cols)]  # same ordering as stacked bar
         fig_heat_rec = go.Figure(go.Heatmap(
             z=recog_cross.values,
-            x=recog_cross.columns,
-            y=[r[:50] for r in recog_cross.index],
+            x=[wrap_label(c, 20) for c in recog_cross.columns],
+            y=[wrap_label(r, 20) for r in recog_cross.index],
             colorscale='Viridis',
             text=[[f'{v:.0f}%' for v in row] for row in recog_cross.values],
             texttemplate='%{text}',
-            textfont={"size": 11},
+            textfont={"size": 10},
             colorbar=dict(title="%", len=0.8),
             hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
         ))
         fig_heat_rec.update_layout(
             title="Recognition distribution by role (%)",
             xaxis_title="Recognition",
-            yaxis_title="",
-            height=max(400, 60 * len(recog_cross) + 150),
-            margin=dict(l=250, r=50, t=80, b=50),
+            yaxis_title="Role",
+            height=max(400, 40 * len(recog_cross) + 150),
+            margin=dict(l=220, r=50, t=80, b=80),
             template=PLOTLY_TEMPLATE,
         )
         st.plotly_chart(fig_heat_rec, use_container_width=True)
@@ -345,23 +413,24 @@ try:
     # Growth heatmap
     if total > 0 and filtered_df[role_col].notna().any() and filtered_df[growth_col].notna().any():
         growth_cross = pd.crosstab(filtered_df[role_col], filtered_df[growth_col], normalize='index') * 100
+        growth_cross = growth_cross[growth_cross.columns.intersection(growth_cols)]
         fig_growth = go.Figure(go.Heatmap(
             z=growth_cross.values,
-            x=growth_cross.columns,
-            y=[r[:50] for r in growth_cross.index],
+            x=[wrap_label(c, 20) for c in growth_cross.columns],
+            y=[wrap_label(r, 20) for r in growth_cross.index],
             colorscale='Viridis',
             text=[[f'{v:.0f}%' for v in row] for row in growth_cross.values],
             texttemplate='%{text}',
-            textfont={"size": 11},
+            textfont={"size": 10},
             colorbar=dict(title="%", len=0.8),
             hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
         ))
         fig_growth.update_layout(
             title="Growth potential by role (%)",
             xaxis_title="Growth perception",
-            yaxis_title="",
-            height=max(400, 60 * len(growth_cross) + 150),
-            margin=dict(l=250, r=50, t=80, b=50),
+            yaxis_title="Role",
+            height=max(400, 40 * len(growth_cross) + 150),
+            margin=dict(l=220, r=50, t=80, b=80),
             template=PLOTLY_TEMPLATE,
         )
         st.plotly_chart(fig_growth, use_container_width=True)
@@ -369,7 +438,7 @@ try:
         st.info("No growth data to show in heatmap for the current filters.")
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Cross-Analysis Dashboard v3.0**")
+    st.sidebar.markdown("**Cross-Analysis Dashboard v4.0**")
 
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
