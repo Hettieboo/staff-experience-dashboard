@@ -92,26 +92,31 @@ k4.metric("Sees Growth", f"{pct_contains(growth_col, 'Yes'):.0f}%")
 st.divider()
 
 # --------------------------------------------------
-# CROSS-ANALYSIS FUNCTIONS
+# CROSS-ANALYSIS FUNCTIONS (ROBUST)
 # --------------------------------------------------
 def cross_analysis(factor_col, outcome_col, pattern="Very|Extremely|Yes|Likely"):
     """
-    Returns a dataframe showing % of positive responses for each category
+    Returns a dataframe showing % of positive responses for each category.
+    Handles cases where no responses match the pattern.
     """
-    result = (
-        pd.crosstab(
-            df[factor_col],
-            df[outcome_col].astype(str).str.contains(pattern, case=False),
-            normalize="index"
-        )[True] * 100
-    ).sort_values(ascending=False).reset_index(name=f"% Positive ({outcome_col})")
-    return result
+    ct = pd.crosstab(
+        df[factor_col],
+        df[outcome_col].astype(str).str.contains(pattern, case=False),
+        normalize="index"
+    )
+    
+    if True not in ct.columns:
+        ct[True] = 0.0
+    
+    result = ct[True] * 100
+    return result.sort_values(ascending=False).reset_index(name=f"% Positive ({outcome_col})")
 
 def cross_bar_multiple(factor_col, outcome_col, title, pattern="Very|Extremely|Yes|Likely"):
     """
-    Draws a horizontal bar chart for cross-analysis
+    Draws a horizontal bar chart for cross-analysis.
     """
     data = cross_analysis(factor_col, outcome_col, pattern)
+    
     fig, ax = plt.subplots(figsize=(10, max(4, len(data) * 0.45)))
     ax.barh(data[factor_col], data[f"% Positive ({outcome_col})"], color="#2ca02c")
     ax.set_xlim(0, 100)
@@ -149,7 +154,7 @@ for cat in categories:
 st.divider()
 
 # --------------------------------------------------
-# EXPERIENCE DRIVERS (SIMPLE EXECUTIVE STYLE)
+# EXPERIENCE DRIVERS (EXECUTIVE STYLE)
 # --------------------------------------------------
 st.header("Key Experience Drivers")
 
