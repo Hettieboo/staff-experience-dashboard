@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 
@@ -83,18 +82,18 @@ with col1:
 
 with col2:
     avg_score = filtered_df['Recommendation_Score'].mean()
-    st.metric("Avg Recommendation", f"{avg_score:.1f}/10")
+    st.metric("Avg Recommendation", f"{avg_score:.1f}/10" if total > 0 else "N/A")
 
 with col3:
     promoters = len(filtered_df[filtered_df['Recommendation_Score'] >= 9])
     detractors = len(filtered_df[filtered_df['Recommendation_Score'] <= 6])
     nps = ((promoters - detractors) / total * 100) if total > 0 else 0
-    st.metric("NPS Score", f"{nps:.0f}")
+    st.metric("NPS Score", f"{nps:.0f}" if total > 0 else "N/A")
 
 with col4:
     fulfilled = len(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)])
     pct = (fulfilled / total * 100) if total > 0 else 0
-    st.metric("Highly Fulfilled", f"{pct:.0f}%")
+    st.metric("Highly Fulfilled", f"{pct:.0f}%" if total > 0 else "N/A")
 
 st.markdown("---")
 
@@ -122,61 +121,64 @@ growth_map = {
 filtered_df['Recognition_Short'] = filtered_df['Recognition'].map(recog_map)
 filtered_df['Growth_Short'] = filtered_df['Growth_Potential'].map(growth_map)
 
-top_roles = filtered_df['Role'].value_counts().index
+# Fill NaN with 0 for percentages
+filtered_df['Recognition_Short'] = filtered_df['Recognition_Short'].fillna('No Response')
+filtered_df['Growth_Short'] = filtered_df['Growth_Short'].fillna('No Response')
 
 # Crosstabs
 recog_cross = pd.crosstab(
     filtered_df['Role'], filtered_df['Recognition_Short'], normalize='index'
-) * 100
+).fillna(0) * 100
 growth_cross = pd.crosstab(
     filtered_df['Role'], filtered_df['Growth_Short'], normalize='index'
-) * 100
+).fillna(0) * 100
 
 # Function for dynamic font color based on background
 def font_color(val):
-    if val > 50:
-        return 'white'
-    else:
-        return 'black'
+    return 'white' if val > 50 else 'black'
 
-# Recognition Heatmap
+# Truncate long role names
+truncated_roles = [r if len(r) <= 25 else r[:22] + '...' for r in recog_cross.index]
+
+# Recognition Heatmap (horizontal for better readability)
 fig_recog = go.Figure(go.Heatmap(
-    z=recog_cross.values,
-    x=recog_cross.columns,
-    y=[r[:30] for r in recog_cross.index],
+    z=recog_cross.values.T,
+    x=truncated_roles,
+    y=recog_cross.columns,
     colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-    text=np.round(recog_cross.values, 0),
+    text=np.round(recog_cross.values.T, 0),
     texttemplate="%{text}%",
-    textfont=dict(color=[font_color(v) for row in recog_cross.values for v in row]),
-    hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
+    textfont=dict(color=[[font_color(v) for v in row] for row in recog_cross.values.T]),
+    hovertemplate='<b>%{x}</b><br>%{y}: %{z:.1f}%<extra></extra>'
 ))
 fig_recog.update_layout(
     title="Recognition Sentiment by Role (%)",
-    xaxis_title="Recognition Level",
-    yaxis_title="",
+    xaxis_title="Role",
+    yaxis_title="Recognition Level",
     height=500,
     margin=dict(t=100, b=50)
 )
 
-# Growth Heatmap
+# Growth Heatmap (horizontal)
 fig_growth = go.Figure(go.Heatmap(
-    z=growth_cross.values,
-    x=growth_cross.columns,
-    y=[r[:30] for r in growth_cross.index],
+    z=growth_cross.values.T,
+    x=truncated_roles,
+    y=growth_cross.columns,
     colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-    text=np.round(growth_cross.values, 0),
+    text=np.round(growth_cross.values.T, 0),
     texttemplate="%{text}%",
-    textfont=dict(color=[font_color(v) for row in growth_cross.values for v in row]),
-    hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
+    textfont=dict(color=[[font_color(v) for v in row] for row in growth_cross.values.T]),
+    hovertemplate='<b>%{x}</b><br>%{y}: %{z:.1f}%<extra></extra>'
 ))
 fig_growth.update_layout(
     title="Growth Potential by Role (%)",
-    xaxis_title="Growth Perception",
-    yaxis_title="",
+    xaxis_title="Role",
+    yaxis_title="Growth Perception",
     height=500,
     margin=dict(t=100, b=50)
 )
 
+# Display heatmaps
 col1, col2 = st.columns(2)
 col1.plotly_chart(fig_recog, use_container_width=True)
 col2.plotly_chart(fig_growth, use_container_width=True)
