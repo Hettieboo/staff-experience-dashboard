@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from fpdf import FPDF
 import numpy as np
+from fpdf import FPDF
 
 # --------------------------------------------------
 # PAGE CONFIG
@@ -21,8 +21,8 @@ st.markdown(
 # BRAND COLOURS
 # --------------------------------------------------
 PRIMARY_COLOR = "#FF6B81"  # pink
-SECONDARY_COLOR = "#4B4B4B"  # grey/dark
-ACCENT_COLOR = "#FFA500"  # optional accent
+SECONDARY_COLOR = "#4B4B4B"  # dark grey
+ACCENT_COLOR = "#FFA500"  # optional
 
 # --------------------------------------------------
 # LOAD DATA
@@ -50,16 +50,14 @@ recognition_col = find_col("recognized")
 growth_col = find_col("growth")
 
 # --------------------------------------------------
-# KPI FUNCTION
+# KPI FUNCTIONS
 # --------------------------------------------------
 total = len(df)
 
 def pct_contains(col, pattern):
     return (df[col].astype(str).str.contains(pattern, case=False, na=False).mean()) * 100
 
-# --------------------------------------------------
-# FULFILLMENT INDEX
-# --------------------------------------------------
+# Fulfillment Index (headline metric)
 def fulfillment_index(col):
     mapping = {'Extremely': 2, 'Very': 2, 'Somewhat': 1, 'No response': 0, 'No': 0}
     return df[col].map(lambda x: next((v for k,v in mapping.items() if k.lower() in str(x).lower()), 0)).mean() * 50
@@ -113,7 +111,6 @@ def cross_bar(factor_col, title):
 # CROSS ANALYSIS SECTIONS
 # --------------------------------------------------
 st.header("Cross Analysis")
-
 cross_bar(role_col, "Job Fulfillment by Role / Department")
 cross_bar(race_col, "Job Fulfillment by Race / Ethnicity")
 cross_bar(disability_col, "Job Fulfillment by Disability Status")
@@ -180,7 +177,11 @@ def generate_pdf():
     pdf.cell(200, 10, txt=f"Total Responses: {total}", ln=True)
     pdf.cell(200, 10, txt=f"Fulfillment Index: {fi_score:.0f}/100", ln=True)
     pdf.ln(5)
-    pdf.multi_cell(0, 8, txt="Insights:\n- Job fulfillment varies by role and demographic.\n- Growth and recognition are key drivers.\n\nRecommendations:\n- Prioritize low-fulfillment roles, standardize recognition, track progress.")
+    pdf.multi_cell(
+        0, 8,
+        txt="Insights:\n- Job fulfillment varies by role and demographic.\n- Growth and recognition are key drivers.\n\n"
+            "Recommendations:\n- Prioritize low-fulfillment roles, standardize recognition, track progress."
+    )
     pdf_output = "fulfillment_report.pdf"
     pdf.output(pdf_output)
     return pdf_output
