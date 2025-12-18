@@ -2,41 +2,16 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # Page configuration
-st.set_page_config(
-    page_title="Homes First Survey Dashboard",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Survey Cross-Analysis", page_icon="📊", layout="wide")
 
-# Custom CSS for better styling
+# Custom CSS
 st.markdown("""
     <style>
-    .main {
-        padding: 0rem 1rem;
-    }
-    .stMetric {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 5px;
-    }
-    h1 {
-        color: #1f77b4;
-        padding-bottom: 20px;
-    }
-    h2 {
-        color: #2c3e50;
-        padding-top: 20px;
-    }
-    .plot-container {
-        background-color: white;
-        padding: 10px;
-        border-radius: 5px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
+    .main {padding: 0rem 1rem;}
+    h1 {color: #2c3e50; padding-bottom: 10px;}
+    h2 {color: #34495e; padding-top: 15px; padding-bottom: 10px;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -44,42 +19,23 @@ st.markdown("""
 @st.cache_data
 def load_data():
     df = pd.read_excel('Combined- Cross Analysis.xlsx')
-    
-    # Shorten column names
-    df.columns = [
-        'Role',
-        'Ethnicity',
-        'Disability',
-        'Work_Fulfillment',
-        'Recommendation_Score',
-        'Recognition',
-        'Growth_Potential'
-    ]
-    
+    df.columns = ['Role', 'Ethnicity', 'Disability', 'Work_Fulfillment', 'Recommendation_Score', 'Recognition', 'Growth_Potential']
     return df
 
 try:
     df = load_data()
     
     # Header
-    st.title("📊 Homes First Employee Survey Dashboard")
-    st.markdown("### Interactive Analysis of Employee Experience and Engagement")
-    st.markdown("---")
+    st.title("📊 Employee Survey Cross-Analysis Dashboard")
+    st.markdown("### Comparing Employee Groups Across Survey Questions")
     
     # Sidebar filters
-    st.sidebar.header("🔍 Filter Options")
-    
-    # Role filter
+    st.sidebar.header("🔍 Filter Data")
     roles = ['All'] + sorted(df['Role'].unique().tolist())
-    selected_role = st.sidebar.selectbox("Select Role/Department", roles)
+    selected_role = st.sidebar.selectbox("Role/Department", roles)
     
-    # Ethnicity filter
     ethnicities = ['All'] + sorted(df['Ethnicity'].unique().tolist())
-    selected_ethnicity = st.sidebar.selectbox("Select Ethnicity", ethnicities)
-    
-    # Disability filter
-    disabilities = ['All'] + sorted(df['Disability'].unique().tolist())
-    selected_disability = st.sidebar.selectbox("Select Disability Status", disabilities)
+    selected_ethnicity = st.sidebar.selectbox("Ethnicity", ethnicities)
     
     # Apply filters
     filtered_df = df.copy()
@@ -87,401 +43,259 @@ try:
         filtered_df = filtered_df[filtered_df['Role'] == selected_role]
     if selected_ethnicity != 'All':
         filtered_df = filtered_df[filtered_df['Ethnicity'] == selected_ethnicity]
-    if selected_disability != 'All':
-        filtered_df = filtered_df[filtered_df['Disability'] == selected_disability]
+    
+    total = len(filtered_df)
     
     # Key Metrics
-    st.markdown("## 📈 Key Metrics")
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
-        total_responses = len(filtered_df)
-        st.metric("Total Responses", total_responses)
-    
+        st.metric("Total Responses", total)
     with col2:
         avg_score = filtered_df['Recommendation_Score'].mean()
-        st.metric("Avg Recommendation Score", f"{avg_score:.1f}/10")
-    
+        st.metric("Avg Recommendation", f"{avg_score:.1f}/10")
     with col3:
-        highly_fulfilled = len(filtered_df[filtered_df['Work_Fulfillment'] == 'I find the work I do extremely fulfilling and rewarding'])
-        fulfillment_pct = (highly_fulfilled / total_responses * 100) if total_responses > 0 else 0
-        st.metric("Highly Fulfilled", f"{fulfillment_pct:.1f}%")
-    
+        promoters = len(filtered_df[filtered_df['Recommendation_Score'] >= 9])
+        nps = ((promoters - len(filtered_df[filtered_df['Recommendation_Score'] <= 6])) / total * 100) if total > 0 else 0
+        st.metric("NPS Score", f"{nps:.0f}")
     with col4:
-        recognized = len(filtered_df[filtered_df['Recognition'] == 'Yes, I do feel recognized and acknowledged'])
-        recognition_pct = (recognized / total_responses * 100) if total_responses > 0 else 0
-        st.metric("Feel Recognized", f"{recognition_pct:.1f}%")
+        fulfilled = len(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)])
+        st.metric("Highly Fulfilled", f"{fulfilled/total*100:.0f}%" if total > 0 else "0%")
     
     st.markdown("---")
     
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Dashboard Version 1.0**")
+    # === SECTION 1: Recommendation Score by Employee Groups ===
+    st.markdown("## 🎯 Recommendation Score Across Groups")
     
-    # OVERVIEW TAB
-    if chart_type == "Overview":
-        st.markdown("## 🎯 Survey Overview")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # By Role (Top 10)
+        role_avg = df.groupby('Role')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
+        role_avg = role_avg[role_avg['count'] >= 3].nlargest(10, 'mean')
+        role_avg['Role_Short'] = role_avg['Role'].str[:35]
         
-        col1, col2 = st.columns(2)
+        fig1 = px.bar(role_avg, y='Role_Short', x='mean', orientation='h',
+                     color='mean', color_continuous_scale='RdYlGn',
+                     range_color=[0, 10], text='mean',
+                     title="Average Score by Role (Top 10)")
+        fig1.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+        fig1.update_layout(xaxis_range=[0, 11], xaxis_title="Avg Score", yaxis_title="", height=400, showlegend=False)
+        st.plotly_chart(fig1, use_container_width=True)
+    
+    with col2:
+        # By Ethnicity
+        eth_avg = df.groupby('Ethnicity')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
+        eth_avg = eth_avg[eth_avg['count'] >= 3].nlargest(10, 'mean')
+        eth_short = {'South Asian (including Bangladeshi, Pakistani, Indian, Sri Lankan, Indo-Caribbean, Indo-African, Indo-Fijian, West Indian)': 'South Asian',
+                    'Black (including East African, West African, Central African)': 'Black (African)',
+                    'Black (including Caribbean, European, American, Canadian, South American)': 'Black (Caribbean/Am)',
+                    'White (including European, American, South African, Canadian)': 'White',
+                    'Middle Eastern (including Arab, Afghani, Armenian, Iranian, Iraqi, Jordanian, Lebanese, Palestinian, Syrian, Yemeni)': 'Middle Eastern'}
+        eth_avg['Ethnicity_Short'] = eth_avg['Ethnicity'].map(lambda x: eth_short.get(x, x[:30]))
         
-        with col1:
-            # Work Fulfillment Distribution
-            fulfillment_counts = filtered_df['Work_Fulfillment'].value_counts()
-            fig1 = px.pie(
-                values=fulfillment_counts.values,
-                names=fulfillment_counts.index,
-                title="Work Fulfillment Distribution",
-                color_discrete_sequence=px.colors.qualitative.Set3
-            )
-            fig1.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig1, use_container_width=True)
+        fig2 = px.bar(eth_avg, y='Ethnicity_Short', x='mean', orientation='h',
+                     color='mean', color_continuous_scale='RdYlGn',
+                     range_color=[0, 10], text='mean',
+                     title="Average Score by Ethnicity (Top 10)")
+        fig2.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+        fig2.update_layout(xaxis_range=[0, 11], xaxis_title="Avg Score", yaxis_title="", height=400, showlegend=False)
+        st.plotly_chart(fig2, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # === SECTION 2: Work Fulfillment by Groups ===
+    st.markdown("## 💼 Work Fulfillment Across Groups")
+    
+    # Get top roles
+    top_roles = df['Role'].value_counts().head(8).index
+    role_fulfill = df[df['Role'].isin(top_roles)]
+    
+    # Create percentage crosstab
+    fulfill_cross = pd.crosstab(role_fulfill['Role'], 
+                                role_fulfill['Work_Fulfillment'].str[:30], 
+                                normalize='index') * 100
+    
+    fig3 = go.Figure()
+    colors = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
+    
+    for i, col in enumerate(fulfill_cross.columns):
+        fig3.add_trace(go.Bar(
+            y=[r[:35] for r in fulfill_cross.index],
+            x=fulfill_cross[col],
+            name=col,
+            orientation='h',
+            marker_color=colors[i % len(colors)],
+            text=[f'{v:.0f}%' if v > 8 else '' for v in fulfill_cross[col]],
+            textposition='inside'
+        ))
+    
+    fig3.update_layout(
+        barmode='stack',
+        title="Work Fulfillment Distribution by Role (%)",
+        xaxis_title="Percentage", yaxis_title="",
+        height=500,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # === SECTION 3: Recognition Across Groups ===
+    st.markdown("## 🌟 Recognition Sentiment Across Groups")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Recognition by Role
+        recog_map = {'Yes, I do feel recognized and acknowledged': 'Yes',
+                    'I somewhat feel recognized and acknowledged': 'Somewhat',
+                    'I do find myself being recognized and acknowledged, but it\'s rare given the contributions I make': 'Rare',
+                    'I don\'t feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently': 'No (Want More)',
+                    'I don\'t feel recognized and acknowledged but I prefer it that way': 'No (Prefer)'}
         
-        with col2:
-            # Recognition Distribution
-            recognition_counts = filtered_df['Recognition'].value_counts()
-            fig2 = px.pie(
-                values=recognition_counts.values,
-                names=recognition_counts.index,
-                title="Recognition Sentiment Distribution",
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig2.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig2, use_container_width=True)
+        df_recog = df.copy()
+        df_recog['Recognition_Short'] = df_recog['Recognition'].map(recog_map)
         
-        # Recommendation Score Distribution
-        st.markdown("### Recommendation Score Distribution (NPS)")
-        fig3 = px.histogram(
-            filtered_df,
-            x='Recommendation_Score',
-            nbins=11,
-            title="How Likely to Recommend Homes First (0-10 Scale)",
-            color_discrete_sequence=['#1f77b4']
-        )
-        fig3.update_layout(
-            xaxis_title="Recommendation Score",
-            yaxis_title="Number of Responses",
-            bargap=0.1
-        )
-        st.plotly_chart(fig3, use_container_width=True)
+        role_recog = df_recog[df_recog['Role'].isin(top_roles)]
+        recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Short'], normalize='index') * 100
         
-        # Growth Potential
-        st.markdown("### Career Growth Potential Perception")
-        growth_counts = filtered_df['Growth_Potential'].value_counts()
-        fig4 = px.bar(
-            x=growth_counts.index,
-            y=growth_counts.values,
-            title="Employee Perception of Growth Opportunities",
-            color=growth_counts.values,
-            color_continuous_scale='Blues'
-        )
+        fig4 = go.Figure()
+        colors_recog = ['#2ecc71', '#f39c12', '#e67e22', '#e74c3c', '#95a5a6']
+        
+        for i, col in enumerate(['Yes', 'Somewhat', 'Rare', 'No (Want More)', 'No (Prefer)']):
+            if col in recog_cross.columns:
+                fig4.add_trace(go.Bar(
+                    y=[r[:30] for r in recog_cross.index],
+                    x=recog_cross[col],
+                    name=col,
+                    orientation='h',
+                    marker_color=colors_recog[i],
+                    text=[f'{v:.0f}%' if v > 8 else '' for v in recog_cross[col]],
+                    textposition='inside'
+                ))
+        
         fig4.update_layout(
-            xaxis_title="Growth Perception",
-            yaxis_title="Count",
-            showlegend=False
+            barmode='stack',
+            title="Recognition by Role (%)",
+            xaxis_title="Percentage", yaxis_title="",
+            height=450,
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="right", x=1.15)
         )
-        fig4.update_xaxes(tickangle=-45)
         st.plotly_chart(fig4, use_container_width=True)
     
-    # ROLE ANALYSIS TAB
-    elif chart_type == "Role Analysis":
-        st.markdown("## 👥 Role/Department Analysis")
+    with col2:
+        # Growth Potential by Role
+        growth_map = {'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
+                     'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
+                     'Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization': 'Limited',
+                     'There is very little potential to grow although I would like to advance my career with Homes First': 'Very Limited',
+                     'I am not interested in career growth and prefer to remain in my current role': 'Not Interested'}
         
-        # Top roles by count
-        role_counts = filtered_df['Role'].value_counts().head(10)
-        fig1 = px.bar(
-            x=role_counts.values,
-            y=role_counts.index,
-            orientation='h',
-            title="Top 10 Roles by Response Count",
-            color=role_counts.values,
-            color_continuous_scale='Viridis'
-        )
-        fig1.update_layout(
-            xaxis_title="Number of Responses",
-            yaxis_title="Role",
-            showlegend=False
-        )
-        st.plotly_chart(fig1, use_container_width=True)
+        df_growth = df.copy()
+        df_growth['Growth_Short'] = df_growth['Growth_Potential'].map(growth_map)
         
-        # Average recommendation score by role
-        st.markdown("### Average Recommendation Score by Role")
-        avg_by_role = filtered_df.groupby('Role')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
-        avg_by_role = avg_by_role[avg_by_role['count'] >= 3].sort_values('mean', ascending=False).head(15)
+        role_growth = df_growth[df_growth['Role'].isin(top_roles)]
+        growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Short'], normalize='index') * 100
         
-        fig2 = px.bar(
-            avg_by_role,
-            x='mean',
-            y='Role',
-            orientation='h',
-            title="Average Recommendation Score by Role (Roles with 3+ responses)",
-            color='mean',
-            color_continuous_scale='RdYlGn',
-            range_color=[0, 10]
-        )
-        fig2.update_layout(
-            xaxis_title="Average Score",
-            yaxis_title="Role",
-            showlegend=False
-        )
-        st.plotly_chart(fig2, use_container_width=True)
+        fig5 = go.Figure()
+        colors_growth = ['#27ae60', '#3498db', '#f39c12', '#e74c3c', '#95a5a6']
         
-        # Work fulfillment by role
-        st.markdown("### Work Fulfillment by Top Roles")
-        top_roles = filtered_df['Role'].value_counts().head(8).index
-        role_fulfillment = filtered_df[filtered_df['Role'].isin(top_roles)]
+        for i, col in enumerate(['Yes', 'Some', 'Limited', 'Very Limited', 'Not Interested']):
+            if col in growth_cross.columns:
+                fig5.add_trace(go.Bar(
+                    y=[r[:30] for r in growth_cross.index],
+                    x=growth_cross[col],
+                    name=col,
+                    orientation='h',
+                    marker_color=colors_growth[i],
+                    text=[f'{v:.0f}%' if v > 8 else '' for v in growth_cross[col]],
+                    textposition='inside'
+                ))
         
-        fulfillment_by_role = pd.crosstab(role_fulfillment['Role'], role_fulfillment['Work_Fulfillment'])
-        fulfillment_by_role_pct = fulfillment_by_role.div(fulfillment_by_role.sum(axis=1), axis=0) * 100
-        
-        fig3 = px.bar(
-            fulfillment_by_role_pct,
+        fig5.update_layout(
             barmode='stack',
-            title="Work Fulfillment Distribution by Role (%)",
-            color_discrete_sequence=px.colors.qualitative.Set2
+            title="Growth Potential by Role (%)",
+            xaxis_title="Percentage", yaxis_title="",
+            height=450,
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="right", x=1.15)
         )
-        fig3.update_layout(
-            xaxis_title="Role",
-            yaxis_title="Percentage",
-            legend_title="Fulfillment Level"
-        )
-        fig3.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig5, use_container_width=True)
     
-    # ETHNICITY ANALYSIS TAB
-    elif chart_type == "Ethnicity Analysis":
-        st.markdown("## 🌍 Ethnicity & Diversity Analysis")
-        
-        # Ethnicity distribution
-        ethnicity_counts = filtered_df['Ethnicity'].value_counts()
-        fig1 = px.bar(
-            x=ethnicity_counts.index,
-            y=ethnicity_counts.values,
-            title="Ethnicity Distribution of Respondents",
-            color=ethnicity_counts.values,
-            color_continuous_scale='Teal'
-        )
-        fig1.update_layout(
-            xaxis_title="Ethnicity",
-            yaxis_title="Count",
-            showlegend=False
-        )
-        fig1.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # Average scores by ethnicity
-        st.markdown("### Average Recommendation Score by Ethnicity")
-        avg_by_ethnicity = filtered_df.groupby('Ethnicity')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
-        avg_by_ethnicity = avg_by_ethnicity[avg_by_ethnicity['count'] >= 3].sort_values('mean', ascending=False)
-        
-        fig2 = px.scatter(
-            avg_by_ethnicity,
-            x='mean',
-            y='Ethnicity',
-            size='count',
-            title="Average Recommendation Score by Ethnicity (sized by response count)",
-            color='mean',
-            color_continuous_scale='RdYlGn',
-            range_color=[0, 10]
-        )
-        fig2.update_layout(
-            xaxis_title="Average Recommendation Score",
-            yaxis_title="Ethnicity",
-            xaxis_range=[0, 10]
-        )
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        # Recognition by ethnicity
-        st.markdown("### Recognition Sentiment by Ethnicity")
-        top_ethnicities = filtered_df['Ethnicity'].value_counts().head(8).index
-        eth_recognition = filtered_df[filtered_df['Ethnicity'].isin(top_ethnicities)]
-        
-        recognition_by_eth = pd.crosstab(eth_recognition['Ethnicity'], eth_recognition['Recognition'])
-        recognition_by_eth_pct = recognition_by_eth.div(recognition_by_eth.sum(axis=1), axis=0) * 100
-        
-        fig3 = px.bar(
-            recognition_by_eth_pct,
-            barmode='stack',
-            title="Recognition Distribution by Ethnicity (%)",
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        fig3.update_layout(
-            xaxis_title="Ethnicity",
-            yaxis_title="Percentage",
-            legend_title="Recognition Level"
-        )
-        fig3.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig3, use_container_width=True)
-    
-    # CROSS-ANALYSIS TAB
-    elif chart_type == "Cross-Analysis":
-        st.markdown("## 🔄 Cross-Dimensional Analysis")
-        
-        # Heatmap: Recommendation Score by Role and Recognition
-        st.markdown("### Recommendation Score: Role vs Recognition")
-        top_roles = filtered_df['Role'].value_counts().head(10).index
-        cross_data = filtered_df[filtered_df['Role'].isin(top_roles)]
-        
-        pivot_data = cross_data.pivot_table(
-            values='Recommendation_Score',
-            index='Role',
-            columns='Recognition',
-            aggfunc='mean'
-        )
-        
-        fig1 = px.imshow(
-            pivot_data,
-            title="Average Recommendation Score: Role × Recognition",
-            color_continuous_scale='RdYlGn',
-            aspect='auto',
-            labels=dict(color="Avg Score")
-        )
-        fig1.update_xaxes(side="bottom", tickangle=-45)
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # Sunburst: Role -> Work Fulfillment -> Growth Potential
-        st.markdown("### Hierarchical View: Role → Fulfillment → Growth")
-        sunburst_data = filtered_df[filtered_df['Role'].isin(top_roles)].copy()
-        sunburst_data['Work_Fulfillment_Short'] = sunburst_data['Work_Fulfillment'].str[:30] + '...'
-        sunburst_data['Growth_Potential_Short'] = sunburst_data['Growth_Potential'].str[:30] + '...'
-        
-        fig2 = px.sunburst(
-            sunburst_data,
-            path=['Role', 'Work_Fulfillment_Short', 'Growth_Potential_Short'],
-            title="Hierarchical Relationship: Role → Work Fulfillment → Growth Potential",
-            color='Recommendation_Score',
-            color_continuous_scale='RdYlGn',
-            color_continuous_midpoint=5
-        )
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        # Parallel Categories
-        st.markdown("### Parallel Flow: Fulfillment → Recognition → Growth")
-        parallel_data = filtered_df.copy()
-        parallel_data['Work_Fulfillment_Short'] = parallel_data['Work_Fulfillment'].str[:25]
-        parallel_data['Recognition_Short'] = parallel_data['Recognition'].str[:25]
-        parallel_data['Growth_Short'] = parallel_data['Growth_Potential'].str[:25]
-        
-        fig3 = px.parallel_categories(
-            parallel_data,
-            dimensions=['Work_Fulfillment_Short', 'Recognition_Short', 'Growth_Short'],
-            color='Recommendation_Score',
-            color_continuous_scale='Viridis',
-            title="Flow Analysis: Fulfillment → Recognition → Growth Perception"
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-    
-    # DETAILED METRICS TAB
-    elif chart_type == "Detailed Metrics":
-        st.markdown("## 📊 Detailed Metrics & Insights")
-        
-        # Net Promoter Score Analysis
-        st.markdown("### Net Promoter Score (NPS) Analysis")
-        
-        promoters = len(filtered_df[filtered_df['Recommendation_Score'] >= 9])
-        passives = len(filtered_df[(filtered_df['Recommendation_Score'] >= 7) & (filtered_df['Recommendation_Score'] <= 8)])
-        detractors = len(filtered_df[filtered_df['Recommendation_Score'] <= 6])
-        total = len(filtered_df)
-        
-        if total > 0:
-            nps = ((promoters - detractors) / total) * 100
-        else:
-            nps = 0
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Promoters (9-10)", f"{promoters} ({promoters/total*100:.1f}%)" if total > 0 else "0")
-        with col2:
-            st.metric("Passives (7-8)", f"{passives} ({passives/total*100:.1f}%)" if total > 0 else "0")
-        with col3:
-            st.metric("Detractors (0-6)", f"{detractors} ({detractors/total*100:.1f}%)" if total > 0 else "0")
-        with col4:
-            st.metric("NPS Score", f"{nps:.1f}")
-        
-        # NPS visualization
-        nps_data = pd.DataFrame({
-            'Category': ['Promoters', 'Passives', 'Detractors'],
-            'Count': [promoters, passives, detractors],
-            'Percentage': [promoters/total*100 if total > 0 else 0, 
-                          passives/total*100 if total > 0 else 0, 
-                          detractors/total*100 if total > 0 else 0]
-        })
-        
-        fig1 = px.bar(
-            nps_data,
-            x='Category',
-            y='Count',
-            title="NPS Category Breakdown",
-            color='Category',
-            color_discrete_map={'Promoters': '#28a745', 'Passives': '#ffc107', 'Detractors': '#dc3545'},
-            text='Count'
-        )
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # Disability analysis
-        st.markdown("### Disability Status Analysis")
-        disability_counts = filtered_df['Disability'].value_counts()
-        
-        fig2 = px.bar(
-            x=disability_counts.index,
-            y=disability_counts.values,
-            title="Distribution by Disability Status",
-            color=disability_counts.values,
-            color_continuous_scale='Blues'
-        )
-        fig2.update_layout(showlegend=False)
-        fig2.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        # Correlation matrix
-        st.markdown("### Recommendation Score Insights")
-        
-        # Box plot by different dimensions
-        fig3 = make_subplots(
-            rows=1, cols=2,
-            subplot_titles=("Score by Work Fulfillment", "Score by Recognition")
-        )
-        
-        # Work Fulfillment
-        for fulfillment in filtered_df['Work_Fulfillment'].unique():
-            data = filtered_df[filtered_df['Work_Fulfillment'] == fulfillment]['Recommendation_Score']
-            fig3.add_trace(
-                go.Box(y=data, name=fulfillment[:20], showlegend=False),
-                row=1, col=1
-            )
-        
-        # Recognition
-        for recognition in filtered_df['Recognition'].unique():
-            data = filtered_df[filtered_df['Recognition'] == recognition]['Recommendation_Score']
-            fig3.add_trace(
-                go.Box(y=data, name=recognition[:20], showlegend=False),
-                row=1, col=2
-            )
-        
-        fig3.update_yaxes(title_text="Recommendation Score", row=1, col=1)
-        fig3.update_yaxes(title_text="Recommendation Score", row=1, col=2)
-        fig3.update_layout(height=500, title_text="Score Distribution Analysis")
-        st.plotly_chart(fig3, use_container_width=True)
-        
-        # Summary statistics table
-        st.markdown("### Summary Statistics")
-        summary_stats = filtered_df['Recommendation_Score'].describe()
-        st.dataframe(summary_stats.to_frame().T, use_container_width=True)
-    
-    # Data table at the bottom
     st.markdown("---")
-    st.markdown("## 📋 Filtered Data Preview")
-    st.dataframe(filtered_df, use_container_width=True)
     
-    # Download button
-    csv = filtered_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Filtered Data as CSV",
-        data=csv,
-        file_name='filtered_survey_data.csv',
-        mime='text/csv',
+    # === SECTION 4: Heatmap - Role vs Recognition Impact on Score ===
+    st.markdown("## 🔥 Cross-Analysis: How Role + Recognition Affect Scores")
+    
+    cross_data = df[df['Role'].isin(top_roles)].copy()
+    cross_data['Role_Short'] = cross_data['Role'].str[:30]
+    cross_data['Recognition_Short'] = cross_data['Recognition'].map(recog_map)
+    
+    pivot = cross_data.pivot_table(values='Recommendation_Score', 
+                                   index='Role_Short', 
+                                   columns='Recognition_Short', 
+                                   aggfunc='mean')
+    
+    fig6 = go.Figure(go.Heatmap(
+        z=pivot.values,
+        x=pivot.columns,
+        y=pivot.index,
+        colorscale='RdYlGn',
+        zmid=5, zmin=0, zmax=10,
+        text=[[f'{v:.1f}' if not pd.isna(v) else '' for v in row] for row in pivot.values],
+        texttemplate='%{text}',
+        textfont={"size": 11},
+        colorbar=dict(title="Score")
+    ))
+    
+    fig6.update_layout(
+        title="Average Recommendation Score: Role × Recognition Level",
+        xaxis_title="Recognition Level", yaxis_title="Role",
+        height=500
     )
+    st.plotly_chart(fig6, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # === SECTION 5: Disability Analysis ===
+    st.markdown("## ♿ Disability Status Comparison")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Disability distribution
+        dis_counts = df['Disability'].value_counts().head(6)
+        dis_map = {'I do not identify as an individual living with a disability/disabilities.': 'No Disability',
+                  'I do identify as an individual living with a disability/disabilities but I prefer not to specify the type of disability/disabilities': 'Yes (Not Specified)'}
+        dis_labels = [dis_map.get(x, x[:25]) for x in dis_counts.index]
+        
+        fig7 = go.Figure(go.Pie(
+            labels=dis_labels,
+            values=dis_counts.values,
+            hole=0.4,
+            marker=dict(colors=px.colors.sequential.Purples)
+        ))
+        fig7.update_traces(textposition='inside', textinfo='percent+label')
+        fig7.update_layout(title="Disability Status Distribution", height=400)
+        st.plotly_chart(fig7, use_container_width=True)
+    
+    with col2:
+        # Score by disability
+        dis_avg = df.groupby('Disability')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
+        dis_avg = dis_avg[dis_avg['count'] >= 3].sort_values('mean', ascending=False).head(8)
+        dis_avg['Disability_Short'] = dis_avg['Disability'].map(lambda x: dis_map.get(x, x[:25]))
+        
+        fig8 = px.bar(dis_avg, y='Disability_Short', x='mean', orientation='h',
+                     color='mean', color_continuous_scale='RdYlGn',
+                     range_color=[0, 10], text='mean',
+                     title="Avg Score by Disability Status")
+        fig8.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+        fig8.update_layout(xaxis_range=[0, 11], xaxis_title="Avg Score", yaxis_title="", height=400, showlegend=False)
+        st.plotly_chart(fig8, use_container_width=True)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Cross-Analysis Dashboard v1.0**")
 
 except FileNotFoundError:
-    st.error("❌ Error: 'Combined- Cross Analysis.xlsx' file not found. Please ensure the file is in the same directory as this script.")
+    st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
 except Exception as e:
-    st.error(f"❌ An error occurred: {str(e)}")
-    st.info("Please check your data file format and try again.")
+    st.error(f"❌ Error: {str(e)}")
