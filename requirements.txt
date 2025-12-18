@@ -5,3 +5,4 @@ openpyxl
 fpdf
 plotly
 seaborn
+numpy
