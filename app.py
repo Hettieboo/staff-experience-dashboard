@@ -196,7 +196,7 @@ try:
     # === SECTION 3: Improved Recognition & Growth Sentiment Across Groups ===
     st.markdown("## 🌟 Recognition & Growth Sentiment Across Groups")
     
-    # Prepare Recognition data
+    # Recognition data
     recog_map = {
         'Yes, I do feel recognized and acknowledged': 'Yes',
         'I somewhat feel recognized and acknowledged': 'Somewhat',
@@ -208,8 +208,8 @@ try:
     df_recog['Recognition_Short'] = df_recog['Recognition'].map(recog_map)
     role_recog = df_recog[df_recog['Role'].isin(top_roles)]
     recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Short'], normalize='index') * 100
-    
-    # Prepare Growth data
+
+    # Growth data
     growth_map = {
         'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
         'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
@@ -221,20 +221,21 @@ try:
     df_growth['Growth_Short'] = df_growth['Growth_Potential'].map(growth_map)
     role_growth = df_growth[df_growth['Role'].isin(top_roles)]
     growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Short'], normalize='index') * 100
-    
-    # Sort roles by positive sentiment
+
+    # Sort by positive sentiment
     if 'Yes' in recog_cross.columns:
         recog_cross = recog_cross.sort_values('Yes', ascending=False)
         growth_cross = growth_cross.reindex(recog_cross.index)
-    
+
     recog_order = ['Yes', 'Somewhat', 'Rare', 'No (Want More)', 'No (Prefer)']
     growth_order = ['Yes', 'Some', 'Limited', 'Very Limited', 'Not Interested']
     recog_cross = recog_cross[[c for c in recog_order if c in recog_cross.columns]]
     growth_cross = growth_cross[[c for c in growth_order if c in growth_cross.columns]]
-    
+
     colors = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
-    
+
     fig = go.Figure()
+    # Recognition bars
     for i, col in enumerate(recog_cross.columns):
         fig.add_trace(go.Bar(
             y=[r[:35] for r in recog_cross.index],
@@ -245,6 +246,7 @@ try:
             text=[f'{v:.0f}%' for v in recog_cross[col]],
             textposition='inside'
         ))
+    # Growth bars with pattern
     for i, col in enumerate(growth_cross.columns):
         fig.add_trace(go.Bar(
             y=[r[:35] for r in growth_cross.index],
@@ -256,19 +258,21 @@ try:
             textposition='inside',
             marker=dict(line=dict(color='black', width=1), pattern=dict(shape='/'))
         ))
-    
+
     fig.update_layout(
         barmode='stack',
         title="Recognition & Growth Sentiment by Role (%)",
         xaxis_title="Percentage",
+        xaxis=dict(range=[0, 105]),
         yaxis_title="",
-        height=60 + len(recog_cross.index)*40,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
+        height=80 + len(recog_cross.index)*60,
+        margin=dict(t=80, b=50, l=150, r=50),
+        legend=dict(orientation="h", yanchor="bottom", y=1.15, xanchor="center", x=0.5)
     )
     st.plotly_chart(fig, use_container_width=True)
     
-    # === SECTIONS 4 & 5 and sidebar as original ===
-    # You can leave your existing code for those sections here unchanged
+    # === Sections 4 & 5 and sidebar as original ===
+    # (Leave your original code here unchanged)
     
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
