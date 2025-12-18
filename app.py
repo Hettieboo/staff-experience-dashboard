@@ -1,202 +1,145 @@
+# app.py
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
+import plotly.express as px
 
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
+# -----------------------------
+# CONFIGURATION
+# -----------------------------
 st.set_page_config(
     page_title="Staff Experience & Job Fulfillment",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("Staff Experience & Job Fulfillment")
-st.markdown(
-    "Cross-analysis of organizational and demographic factors influencing staff experience."
-)
-
-# --------------------------------------------------
+# -----------------------------
 # LOAD DATA
-# --------------------------------------------------
+# -----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_excel("Combined- Cross Analysis.xlsx")
-    df = df.fillna("No response")
+    df = pd.read_csv("homes_first_survey.csv")  # Update path if needed
     return df
 
 df = load_data()
 
-# --------------------------------------------------
-# RESOLVE COLUMNS SAFELY
-# --------------------------------------------------
-def find_col(keyword):
-    return next(col for col in df.columns if keyword.lower() in col.lower())
-
-role_col = find_col("role")
-race_col = find_col("racial")
-disability_col = find_col("disabili")
-fulfillment_col = find_col("fulfilling")
-recommend_col = find_col("recommend")
-recognition_col = find_col("recognized")
-growth_col = find_col("growth")
-
-# --------------------------------------------------
-# GROUP ROLES
-# --------------------------------------------------
+# -----------------------------
+# ROLE GROUP MAPPING
+# -----------------------------
 role_mapping = {
-    # Staff / Support
     "Assistant": "Staff / Support",
     "Coordinator": "Staff / Support",
     "Administrator": "Staff / Support",
     "Analyst": "Staff / Support",
     "Generalist": "Staff / Support",
-    # Supervisors
     "Supervisor (Shelters/Housing)": "Shelter Supervisor",
     "Supervisor (HR/Finance/Property/Fundraising/Development)": "Admin Supervisor",
-    # Directors / Managers
     "Director/Assistant Director/Manager/Assistant Manager (HR/Finance/Property/Fundraising/Development)": "Admin Director/Manager",
     "Director/Assistant Director/Manager/Assistant Manager/Site Manager (Shelters/Housing)": "Shelter Director/Manager",
-    # Departments / Programs
     "CSW - Shelters": "CSW - Shelters",
     "ICM - Shelters (includes ICM, HHW, Community Engagement, ICM Health Standards, etc.)": "ICM - Shelters",
     "Non-24 Hour Program (including ICM, follow-up supports and PSW)": "Non-24 Hour Program",
     "Relief": "Relief Staff",
-    # Others / undisclosed
     "Prefer not to disclose/Other": "Other / Prefer not to disclose",
     "Other (Smaller departments/teams not listed seperately in an effort to maintain confidentiality)": "Other / Prefer not to disclose"
 }
 
-df['role_group'] = df[role_col].map(role_mapping).fillna(df[role_col])
+df["Role Group"] = df["Select the role/department that best describes your current position at Homes First."].map(role_mapping)
 
-# --------------------------------------------------
-# KPI SECTION
-# --------------------------------------------------
-st.subheader("Key Indicators")
+# -----------------------------
+# RESPONSE MAPPING
+# -----------------------------
+def map_fulfillment(response):
+    response = str(response).lower()
+    if "extremely fulfilling" in response or "fulfilling and rewarding in some parts" in response or "somewhat fulfilling" in response:
+        return True
+    else:
+        return False
 
-total = len(df)
+def map_recommendation(response):
+    try:
+        value = int(response)
+        return value >= 8  # 8, 9, 10 considered positive
+    except:
+        response = str(response).lower()
+        return "yes" in response
 
-def pct_contains(col, pattern):
-    return (
-        df[col].astype(str)
-        .str.contains(pattern, case=False, na=False)
-        .mean()
-    ) * 100
+def map_recognition(response):
+    response = str(response).lower()
+    if "yes" in response or "somewhat feel recognized" in response or "i do find myself being recognized" in response:
+        return True
+    else:
+        return False
 
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("Responses", total)
-k2.metric("High Fulfillment", f"{pct_contains(fulfillment_col, 'Very|Extremely'):.0f}%")
-k3.metric("Would Recommend", f"{pct_contains(recommend_col, 'Very|Extremely|Likely'):.0f}%")
-k4.metric("Sees Growth", f"{pct_contains(growth_col, 'Yes'):.0f}%")
+def map_growth(response):
+    response = str(response).lower()
+    if "yes" in response or "some potential" in response:
+        return True
+    else:
+        return False
 
-st.divider()
+# Apply mappings
+df["High Fulfillment"] = df["How fulfilling and rewarding do you find your work?"].apply(map_fulfillment)
+df["Would Recommend"] = df["How likely are you to recommend Homes First as a good place to work?"].apply(map_recommendation)
+df["Recognition"] = df["Do you feel you get acknowledged and recognized for your contribution  at work?"].apply(map_recognition)
+df["Sees Growth"] = df["Do you feel there is potential for growth at Homes First?"].apply(map_growth)
 
-# --------------------------------------------------
-# CROSS-ANALYSIS FUNCTIONS (ROBUST)
-# --------------------------------------------------
-def cross_analysis(factor_col, outcome_col, pattern="Very|Extremely|Yes|Likely"):
-    """
-    Returns a dataframe showing % of positive responses for each category.
-    Handles cases where no responses match the pattern.
-    """
-    ct = pd.crosstab(
-        df[factor_col],
-        df[outcome_col].astype(str).str.contains(pattern, case=False),
-        normalize="index"
+# -----------------------------
+# CROSS ANALYSIS FUNCTION
+# -----------------------------
+def cross_analysis(factor_col, outcome_col):
+    table = pd.crosstab(df[factor_col], df[outcome_col], normalize="index") * 100
+    if True not in table.columns:
+        table[True] = 0
+    return table[True].reset_index(name='Percentage')
+
+def cross_bar(factor_col, outcome_col, outcome_name):
+    data = cross_analysis(factor_col, outcome_col)
+    fig = px.bar(
+        data,
+        x=factor_col,
+        y='Percentage',
+        text='Percentage',
+        labels={factor_col: factor_col, 'Percentage': f"% Positive {outcome_name}"},
+        height=450
     )
-    
-    if True not in ct.columns:
-        ct[True] = 0.0
-    
-    result = ct[True] * 100
-    return result.sort_values(ascending=False).reset_index(name=f"% Positive ({outcome_col})")
+    fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+    fig.update_layout(yaxis=dict(range=[0, 100]))
+    st.plotly_chart(fig, use_container_width=True)
 
-def cross_bar_multiple(factor_col, outcome_col, title, pattern="Very|Extremely|Yes|Likely"):
-    """
-    Draws a horizontal bar chart for cross-analysis.
-    """
-    data = cross_analysis(factor_col, outcome_col, pattern)
-    
-    fig, ax = plt.subplots(figsize=(10, max(4, len(data) * 0.45)))
-    ax.barh(data[factor_col], data[f"% Positive ({outcome_col})"], color="#2ca02c")
-    ax.set_xlim(0, 100)
-    ax.set_xlabel("% Positive Response")
-    ax.set_ylabel("")
-    
-    for i, v in enumerate(data[f"% Positive ({outcome_col})"]):
-        ax.text(v + 1, i, f"{v:.0f}%", va="center", fontsize=10)
-    
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
+# -----------------------------
+# DASHBOARD
+# -----------------------------
+st.title("Staff Experience & Job Fulfillment")
+st.markdown("""
+Cross-analysis of organizational and demographic factors influencing staff experience.
+""")
 
-# --------------------------------------------------
-# CROSS ANALYSIS ACROSS CATEGORIES
-# --------------------------------------------------
-st.header("Cross Analysis Across Categories")
+# Key indicators
+st.subheader("Key Indicators")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Responses", df.shape[0])
+col2.metric("High Fulfillment", f"{df['High Fulfillment'].mean()*100:.0f}%")
+col3.metric("Would Recommend", f"{df['Would Recommend'].mean()*100:.0f}%")
+col4.metric("Sees Growth", f"{df['Sees Growth'].mean()*100:.0f}%")
 
-categories = ["role_group", race_col, disability_col]
+# Cross Analysis
+st.subheader("Cross Analysis Across Categories")
+
+categories = [
+    "Role Group",
+    "Which racial or ethnic identity/identities best reflect you. (Select all that apply.)",
+    "Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)"
+]
+
 outcomes = {
-    "Job Fulfillment": fulfillment_col,
-    "Recommendation": recommend_col,
-    "Recognition": recognition_col,
-    "Growth Opportunities": growth_col
+    "High Fulfillment": "Job Fulfillment",
+    "Would Recommend": "Recommendation",
+    "Recognition": "Recognition",
+    "Sees Growth": "Growth Opportunities"
 }
 
 for cat in categories:
-    st.subheader(f"By {cat.replace('_',' ').title()}")
-    for outcome_name, outcome_col in outcomes.items():
-        st.markdown(f"**{outcome_name}:**")
-        cross_bar_multiple(cat, outcome_col, outcome_name)
-        df_result = cross_analysis(cat, outcome_col)
-        st.dataframe(df_result)
-
-st.divider()
-
-# --------------------------------------------------
-# EXPERIENCE DRIVERS (EXECUTIVE STYLE)
-# --------------------------------------------------
-st.header("Key Experience Drivers")
-
-driver_cols = {
-    "Recognition at Work": recognition_col,
-    "Growth Opportunities": growth_col,
-    "Likelihood to Recommend": recommend_col
-}
-
-for title, col in driver_cols.items():
-    pct = pct_contains(col, "Yes|Likely|Very|Extremely")
-
-    fig, ax = plt.subplots(figsize=(6, 1.8))
-    ax.barh([title], [pct], color="#ff7f0e")
-    ax.set_xlim(0, 100)
-    ax.axis("off")
-    ax.text(pct + 1, 0, f"{pct:.0f}%", va="center", fontsize=12)
-
-    st.pyplot(fig)
-    plt.close()
-
-st.divider()
-
-# --------------------------------------------------
-# INSIGHTS & RECOMMENDATIONS
-# --------------------------------------------------
-st.header("Insights & Recommendations")
-
-st.markdown(
-    """
-### Key Insights
-- Job fulfillment varies meaningfully across roles and identity groups.
-- Growth perception and recognition are the strongest drivers of positive experience.
-- Some groups consistently report lower fulfillment, indicating equity gaps.
-
-### Recommendations
-1. Prioritize low-fulfillment roles for workload and management review.
-2. Strengthen visibility and clarity of career progression pathways.
-3. Standardize recognition practices across teams.
-4. Conduct qualitative follow-ups with under-represented groups.
-5. Track changes longitudinally using this dashboard.
-"""
-)
-
-st.caption("Professional people analytics dashboard – decision-focused, not data-heavy.")
+    st.markdown(f"### By {cat}")
+    for col, label in outcomes.items():
+        st.markdown(f"**{label}:**")
+        cross_bar(cat, col, label)
