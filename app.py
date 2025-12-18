@@ -165,14 +165,12 @@ try:
     
     top_roles = df['Role'].value_counts().head(8).index
     role_fulfill = df[df['Role'].isin(top_roles)]
-    
     fulfill_cross = pd.crosstab(role_fulfill['Role'], 
                                 role_fulfill['Work_Fulfillment'].str[:30], 
                                 normalize='index') * 100
     
     fig3 = go.Figure()
     colors = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
-    
     for i, col in enumerate(fulfill_cross.columns):
         fig3.add_trace(go.Bar(
             y=[r[:35] for r in fulfill_cross.index],
@@ -195,86 +193,84 @@ try:
     
     st.markdown("---")
     
-    # === SECTION 3: Recognition & Growth (HORIZONTAL STACKED BARS) ===
+    # === SECTION 3: Improved Recognition & Growth Sentiment Across Groups ===
     st.markdown("## 🌟 Recognition & Growth Sentiment Across Groups")
     
-    col1, col2 = st.columns(2)
+    # Prepare Recognition data
+    recog_map = {
+        'Yes, I do feel recognized and acknowledged': 'Yes',
+        'I somewhat feel recognized and acknowledged': 'Somewhat',
+        'I do find myself being recognized and acknowledged, but it\'s rare given the contributions I make': 'Rare',
+        'I don\'t feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently': 'No (Want More)',
+        'I don\'t feel recognized and acknowledged but I prefer it that way': 'No (Prefer)'
+    }
+    df_recog = df.copy()
+    df_recog['Recognition_Short'] = df_recog['Recognition'].map(recog_map)
+    role_recog = df_recog[df_recog['Role'].isin(top_roles)]
+    recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Short'], normalize='index') * 100
     
-    with col1:
-        recog_map = {
-            'Yes, I do feel recognized and acknowledged': 'Yes',
-            'I somewhat feel recognized and acknowledged': 'Somewhat',
-            'I do find myself being recognized and acknowledged, but it\'s rare given the contributions I make': 'Rare',
-            'I don\'t feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently': 'No (Want More)',
-            'I don\'t feel recognized and acknowledged but I prefer it that way': 'No (Prefer)'
-        }
-        df_recog = df.copy()
-        df_recog['Recognition_Short'] = df_recog['Recognition'].map(recog_map)
-        role_recog = df_recog[df_recog['Role'].isin(top_roles)]
-        recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Short'], normalize='index') * 100
-        col_order = ['Yes', 'Somewhat', 'Rare', 'No (Want More)', 'No (Prefer)']
-        recog_cross = recog_cross[[c for c in col_order if c in recog_cross.columns]]
-        
-        fig4 = go.Figure()
-        colors = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
-        for i, col in enumerate(recog_cross.columns):
-            fig4.add_trace(go.Bar(
-                y=[r[:35] for r in recog_cross.index],
-                x=recog_cross[col],
-                name=col,
-                orientation='h',
-                marker_color=colors[i % len(colors)],
-                text=[f'{v:.0f}%' for v in recog_cross[col]],
-                textposition='inside'
-            ))
-        fig4.update_layout(
-            barmode='stack',
-            title="Recognition Sentiment by Role (%)",
-            xaxis_title="Percentage",
-            yaxis_title="",
-            height=60 + len(recog_cross.index)*40,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
-        )
-        st.plotly_chart(fig4, use_container_width=True)
+    # Prepare Growth data
+    growth_map = {
+        'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
+        'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
+        'Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization': 'Limited',
+        'There is very little potential to grow although I would like to advance my career with Homes First': 'Very Limited',
+        'I am not interested in career growth and prefer to remain in my current role': 'Not Interested'
+    }
+    df_growth = df.copy()
+    df_growth['Growth_Short'] = df_growth['Growth_Potential'].map(growth_map)
+    role_growth = df_growth[df_growth['Role'].isin(top_roles)]
+    growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Short'], normalize='index') * 100
     
-    with col2:
-        growth_map = {
-            'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
-            'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
-            'Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization': 'Limited',
-            'There is very little potential to grow although I would like to advance my career with Homes First': 'Very Limited',
-            'I am not interested in career growth and prefer to remain in my current role': 'Not Interested'
-        }
-        df_growth = df.copy()
-        df_growth['Growth_Short'] = df_growth['Growth_Potential'].map(growth_map)
-        role_growth = df_growth[df_growth['Role'].isin(top_roles)]
-        growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Short'], normalize='index') * 100
-        col_order_growth = ['Yes', 'Some', 'Not Interested', 'Very Limited', 'Limited']
-        growth_cross = growth_cross[[c for c in col_order_growth if c in growth_cross.columns]]
-        
-        fig5 = go.Figure()
-        colors_growth = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
-        for i, col in enumerate(growth_cross.columns):
-            fig5.add_trace(go.Bar(
-                y=[r[:35] for r in growth_cross.index],
-                x=growth_cross[col],
-                name=col,
-                orientation='h',
-                marker_color=colors_growth[i % len(colors_growth)],
-                text=[f'{v:.0f}%' for v in growth_cross[col]],
-                textposition='inside'
-            ))
-        fig5.update_layout(
-            barmode='stack',
-            title="Growth Potential by Role (%)",
-            xaxis_title="Percentage",
-            yaxis_title="",
-            height=60 + len(growth_cross.index)*40,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
-        )
-        st.plotly_chart(fig5, use_container_width=True)
+    # Sort roles by positive sentiment
+    if 'Yes' in recog_cross.columns:
+        recog_cross = recog_cross.sort_values('Yes', ascending=False)
+        growth_cross = growth_cross.reindex(recog_cross.index)
     
-    st.markdown("---")
-
-    # === Rest of the dashboard remains unchanged ===
-    # (Sections 4 and 5 and sidebar code as in your original)
+    recog_order = ['Yes', 'Somewhat', 'Rare', 'No (Want More)', 'No (Prefer)']
+    growth_order = ['Yes', 'Some', 'Limited', 'Very Limited', 'Not Interested']
+    recog_cross = recog_cross[[c for c in recog_order if c in recog_cross.columns]]
+    growth_cross = growth_cross[[c for c in growth_order if c in growth_cross.columns]]
+    
+    colors = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
+    
+    fig = go.Figure()
+    for i, col in enumerate(recog_cross.columns):
+        fig.add_trace(go.Bar(
+            y=[r[:35] for r in recog_cross.index],
+            x=recog_cross[col],
+            name=f"Recognition: {col}",
+            orientation='h',
+            marker_color=colors[i % len(colors)],
+            text=[f'{v:.0f}%' for v in recog_cross[col]],
+            textposition='inside'
+        ))
+    for i, col in enumerate(growth_cross.columns):
+        fig.add_trace(go.Bar(
+            y=[r[:35] for r in growth_cross.index],
+            x=growth_cross[col],
+            name=f"Growth: {col}",
+            orientation='h',
+            marker_color=colors[i % len(colors)],
+            text=[f'{v:.0f}%' for v in growth_cross[col]],
+            textposition='inside',
+            marker=dict(line=dict(color='black', width=1), pattern=dict(shape='/'))
+        ))
+    
+    fig.update_layout(
+        barmode='stack',
+        title="Recognition & Growth Sentiment by Role (%)",
+        xaxis_title="Percentage",
+        yaxis_title="",
+        height=60 + len(recog_cross.index)*40,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # === SECTIONS 4 & 5 and sidebar as original ===
+    # You can leave your existing code for those sections here unchanged
+    
+except FileNotFoundError:
+    st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
+except Exception as e:
+    st.error(f"❌ Error: {str(e)}")
