@@ -108,31 +108,51 @@ try:
     # Horizontal Bar: Recommendation by Role
     # ----------------------
     role_avg = filtered_df.groupby(role_col)[rec_col].mean().reset_index()
-    max_label_len = role_avg[role_col].apply(lambda x: len(str(x))).max() if not role_avg.empty else 20
-    height = max(400, 60*len(role_avg)+100)
-    left_margin = max(200, 15*max_label_len)
-    fig_bar = px.bar(role_avg, x=rec_col, y=role_col, orientation='h', text=rec_col,
-                     color=rec_col, color_continuous_scale='Blues', title="Average Recommendation by Role")
+    height = max(400, 60*len(role_avg)+150)
+    fig_bar = px.bar(role_avg,
+                     x=rec_col,
+                     y=role_col,
+                     orientation='h',
+                     text=rec_col,
+                     color=rec_col,
+                     color_continuous_scale=['#d73027','#fee08b','#1a9850'],
+                     range_color=[0,10],
+                     title="Average Recommendation by Role")
     fig_bar.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-    fig_bar.update_layout(height=height, margin=dict(l=left_margin, r=50, t=100, b=50), xaxis_range=[0,10], showlegend=False)
+    fig_bar.update_layout(height=height, margin=dict(l=250, r=50, t=100, b=50), yaxis=dict(automargin=True))
     st.plotly_chart(fig_bar, use_container_width=True)
 
     # ----------------------
     # Donut: Recognition
     # ----------------------
-    unique_recog = filtered_df[recog_col].nunique()
-    fig_donut = px.pie(filtered_df, names=recog_col, title="Recognition Distribution", hole=0.5,
-                       color_discrete_sequence=px.colors.qualitative.Pastel)
-    fig_donut.update_traces(textposition='outside', textinfo='percent+label')
-    fig_donut.update_layout(height=500 + 20*unique_recog)
-    st.plotly_chart(fig_donut, use_container_width=True)
+    fig_donut = px.pie(
+        filtered_df,
+        names=recog_col,
+        title="Recognition Distribution",
+        hole=0.5,
+        color_discrete_sequence=['#d73027','#fc8d59','#fee08b','#91cf60','#1a9850']
+    )
+    fig_donut.update_traces(
+        textposition='outside',
+        textinfo='percent+label',
+        pull=[0.05]*len(filtered_df[recog_col].unique())
+    )
+    fig_donut.update_layout(
+        height=600,
+        width=600,
+        margin=dict(t=100, b=50, l=50, r=50),
+        title={'x':0.5, 'xanchor':'center'}
+    )
+    st.plotly_chart(fig_donut, use_container_width=False)
 
     # ----------------------
-    # Stacked Bar: Growth Potential
+    # Stacked Horizontal Bar: Growth Potential
     # ----------------------
     growth_cross = pd.crosstab(filtered_df[role_col], filtered_df[growth_col], normalize='index')*100
+    growth_categories = growth_cross.columns.tolist()
+    # Map to red-yellow-green gradient
+    colors = px.colors.sequential.RdYlGn[:len(growth_categories)]
     fig_stack = go.Figure()
-    colors = px.colors.qualitative.Vivid
     for i, col in enumerate(growth_cross.columns):
         fig_stack.add_trace(go.Bar(
             y=[r[:50] for r in growth_cross.index],
@@ -143,17 +163,21 @@ try:
             text=[f'{v:.0f}%' if v>=5 else '' for v in growth_cross[col]],
             textposition='inside'
         ))
-    height = max(400, 60*len(growth_cross)+100)
-    left_margin = max(200, 15*growth_cross.index.str.len().max())
-    fig_stack.update_layout(barmode='stack', xaxis_title="Percentage", yaxis_title="",
-                            height=height, margin=dict(l=left_margin, r=50, t=100, b=50),
+    height = max(400, 60*len(growth_cross)+150)
+    fig_stack.update_layout(barmode='stack',
+                            xaxis_title="Percentage",
+                            yaxis_title="",
+                            height=height,
+                            margin=dict(l=250, r=50, t=100, b=50),
                             title="Growth Potential by Role (%)")
     st.plotly_chart(fig_stack, use_container_width=True)
 
     # ----------------------
-    # Stacked Bar: Work Fulfillment
+    # Stacked Horizontal Bar: Work Fulfillment
     # ----------------------
     fulfill_cross = pd.crosstab(filtered_df[role_col], filtered_df[work_col], normalize='index')*100
+    fulfill_categories = fulfill_cross.columns.tolist()
+    colors_ful = px.colors.sequential.RdYlGn[:len(fulfill_categories)]
     fig_fulfill = go.Figure()
     for i, col in enumerate(fulfill_cross.columns):
         fig_fulfill.add_trace(go.Bar(
@@ -161,77 +185,73 @@ try:
             x=fulfill_cross[col],
             name=col,
             orientation='h',
+            marker_color=colors_ful[i % len(colors_ful)],
             text=[f'{v:.0f}%' if v>=5 else '' for v in fulfill_cross[col]],
-            textposition='inside',
-            marker_color=colors[i % len(colors)]
+            textposition='inside'
         ))
-    height = max(400, 60*len(fulfill_cross)+100)
-    left_margin = max(200, 15*fulfill_cross.index.str.len().max())
-    fig_fulfill.update_layout(barmode='stack', xaxis_title="Percentage", yaxis_title="",
-                              height=height, margin=dict(l=left_margin, r=50, t=100, b=50),
+    height = max(400, 60*len(fulfill_cross)+150)
+    fig_fulfill.update_layout(barmode='stack',
+                              xaxis_title="Percentage",
+                              yaxis_title="",
+                              height=height,
+                              margin=dict(l=250, r=50, t=100, b=50),
                               title="Work Fulfillment by Role (%)")
     st.plotly_chart(fig_fulfill, use_container_width=True)
 
     # ----------------------
-    # Heatmap: Work Fulfillment (Dynamic Colors)
+    # Heatmap: Work Fulfillment
     # ----------------------
-    font_size = max(8, 12 - int(len(fulfill_cross)/5))
     fig_ful_heat = go.Figure(go.Heatmap(
         z=fulfill_cross.values,
         x=fulfill_cross.columns,
         y=[r[:50] for r in fulfill_cross.index],
-        colorscale=[[0,'#d73027'], [0.5,'#fee08b'], [1,'#1a9850']],  # red → yellow → green
+        colorscale=['#d73027','#fee08b','#1a9850'],
         zmin=0, zmax=100,
         text=[[f'{v:.0f}%' for v in row] for row in fulfill_cross.values],
         texttemplate='%{text}',
-        textfont={"size": font_size},
+        textfont={"size":11, "color":"black"},
         hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
     ))
-    height = max(400, 60*len(fulfill_cross)+100)
-    left_margin = max(200, 15*fulfill_cross.index.str.len().max())
     fig_ful_heat.update_layout(
-        title="Work Fulfillment by Role (%)",
+        title="Work Fulfillment Heatmap by Role (%)",
         xaxis_title="Fulfillment Level",
         yaxis_title="",
-        height=height,
-        plot_bgcolor='#1e1e1e',
-        paper_bgcolor='#1e1e1e',
-        font=dict(color='white'),
-        margin=dict(l=left_margin, r=50, t=100, b=50)
+        height=max(400, 60*len(fulfill_cross)+150),
+        plot_bgcolor='#f9f9f9',
+        paper_bgcolor='#f9f9f9',
+        font=dict(color='black'),
+        margin=dict(l=250, r=50, t=100, b=50)
     )
     st.plotly_chart(fig_ful_heat, use_container_width=True)
 
     # ----------------------
-    # Heatmap: Growth Potential (Dynamic Colors)
+    # Heatmap: Growth Potential
     # ----------------------
-    font_size = max(8, 12 - int(len(growth_cross)/5))
     fig_growth_heat = go.Figure(go.Heatmap(
         z=growth_cross.values,
         x=growth_cross.columns,
         y=[r[:50] for r in growth_cross.index],
-        colorscale=[[0,'#d73027'], [0.5,'#fee08b'], [1,'#1a9850']],
+        colorscale=['#d73027','#fee08b','#1a9850'],
         zmin=0, zmax=100,
         text=[[f'{v:.0f}%' for v in row] for row in growth_cross.values],
         texttemplate='%{text}',
-        textfont={"size": font_size},
+        textfont={"size":11, "color":"black"},
         hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
     ))
-    height = max(400, 60*len(growth_cross)+100)
-    left_margin = max(200, 15*growth_cross.index.str.len().max())
     fig_growth_heat.update_layout(
-        title="Growth Potential by Role (%)",
+        title="Growth Potential Heatmap by Role (%)",
         xaxis_title="Growth Perception",
         yaxis_title="",
-        height=height,
-        plot_bgcolor='#1e1e1e',
-        paper_bgcolor='#1e1e1e',
-        font=dict(color='white'),
-        margin=dict(l=left_margin, r=50, t=100, b=50)
+        height=max(400, 60*len(growth_cross)+150),
+        plot_bgcolor='#f9f9f9',
+        paper_bgcolor='#f9f9f9',
+        font=dict(color='black'),
+        margin=dict(l=250, r=50, t=100, b=50)
     )
     st.plotly_chart(fig_growth_heat, use_container_width=True)
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Responsive Cross-Analysis Dashboard v6.0**")
+    st.sidebar.markdown("**Cross-Analysis Dashboard v9.0**")
 
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
