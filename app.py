@@ -1,81 +1,121 @@
-import streamlit as st
+# Import required libraries
 import pandas as pd
-import plotly.express as px
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# --- Page configuration ---
-st.set_page_config(
-    page_title="Staff Experience & Job Fulfillment",
-    layout="wide"
-)
+# ============================
+# 1. Load the dataset
+# ============================
+# Replace 'homes_first_survey.csv' with your CSV filename in the repo
+df = pd.read_csv('homes_first_survey.csv')
 
-# --- Load data ---
-@st.cache_data
-def load_data():
-    df = pd.read_excel("Combined- Cross Analysis.xlsx")  # Update with your exact file name
-    return df
+# Preview data
+print(df.head())
 
-df = load_data()
-
-# --- Key indicators ---
-total_responses = df.shape[0]
-high_fulfillment = (df["How fulfilling and rewarding do you find your work?"] >= 8).mean() * 100
-would_recommend = (df["How likely are you to recommend Homes First as a good place to work?"] >= 8).mean() * 100
-sees_growth = (df["Do you feel there is potential for growth at Homes First?"].str.contains("Yes", na=False)).mean() * 100
-
-st.title("Staff Experience & Job Fulfillment")
-st.markdown("Cross-analysis of organizational and demographic factors influencing staff experience.")
-
-# Display key indicators
-st.markdown("### Key Indicators")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Responses", total_responses)
-col2.metric("High Fulfillment (%)", f"{high_fulfillment:.0f}%")
-col3.metric("Would Recommend (%)", f"{would_recommend:.0f}%")
-col4.metric("Sees Growth (%)", f"{sees_growth:.0f}%")
-
-# --- Utility function to create charts ---
-def plot_bar(data, category_col, value_col, title):
-    fig = px.bar(
-        data_frame=data,
-        x=category_col,
-        y=value_col,
-        color=value_col,
-        color_continuous_scale='Viridis',
-        text_auto=True
-    )
-    fig.update_layout(
-        title=title,
-        xaxis_title=category_col,
-        yaxis_title=value_col,
-        coloraxis_showscale=False,
-        height=400
-    )
-    return fig
-
-# --- Questions and cross-analysis ---
-questions = {
-    "Job Fulfillment": "How fulfilling and rewarding do you find your work?",
-    "Recommendation": "How likely are you to recommend Homes First as a good place to work?",
-    "Recognition": "Do you feel you get acknowledged and recognized for your contribution  at work?",
-    "Growth Opportunities": "Do you feel there is potential for growth at Homes First?",
-}
-
-categories = [
-    ("Role/Department", "Select the role/department that best describes your current position at Homes First."),
-    ("Racial/Ethnic Identity", "Which racial or ethnic identity/identities best reflect you. (Select all that apply.)"),
-    ("Disability", "Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)")
+# ============================
+# 2. Clean multi-select columns
+# ============================
+# Split multi-select columns into lists
+multi_select_cols = [
+    'Which racial or ethnic identity/identities best reflect you. (Select all that apply.)',
+    'Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)'
 ]
 
-for cat_name, cat_col in categories:
-    st.markdown(f"### Cross Analysis by {cat_name}")
-    for q_name, q_col in questions.items():
-        st.markdown(f"#### {q_name}")
-        # Aggregate data
-        if df[q_col].dtype == "object":
-            summary = df.groupby(cat_col)[q_col].value_counts(normalize=True).rename("Percentage").reset_index()
-            summary["Percentage"] *= 100
-        else:
-            summary = df.groupby(cat_col)[q_col].mean().reset_index()
-        # Plot chart
-        fig = plot_bar(summary, cat_col, "Percentage" if "Percentage" in summary.columns else q_col, f"{q_name} by {cat_name}")
-        st.plotly_chart(fig, use_container_width=True)
+for col in multi_select_cols:
+    df[col] = df[col].str.split(',').apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+
+# ============================
+# 3. Clean textual categorical responses
+# ============================
+# Map fulfillment to High / Medium / Low
+fulfillment_map = {
+    "I find the work I do extremely fulfilling and rewarding": "High",
+    "I find the work I do fulfilling and rewarding in some parts and not so much in others": "Medium",
+    "I find the work I do somewhat fulfilling and rewarding": "Medium",
+    "I don't find the work I do to be fulfilling or rewarding but I like other aspects of the job (such as the hours, the location, the pay/benefits, etc.)": "Low",
+    "I don't find the work I do to be fulfilling or rewarding so I am taking steps to change jobs/career path/industry": "Low"
+}
+df['Work_Fulfillment_Clean'] = df['How fulfilling and rewarding do you find your work?'].map(fulfillment_map)
+
+# Map Recognition to Yes / Somewhat / No
+recognition_map = {
+    "Yes, I do feel recognized and acknowledged": "Yes",
+    "I somewhat feel recognized and acknowledged": "Somewhat",
+    "I don't feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently": "No",
+    "I don't feel recognized and acknowledged but I prefer it that way": "No",
+    "I do find myself being recognized and acknowledged, but it's rare given the contributions I make": "Somewhat"
+}
+df['Recognition_Clean'] = df['Do you feel you get acknowledged and recognized for your contribution  at work?'].map(recognition_map)
+
+# Map Potential for Growth to Yes / Somewhat / No
+growth_map = {
+    "Yes, I do feel there is potential to grow and I hope to advance my career with Homes First": "Yes",
+    "There is some potential to grow and I hope to advance my career with Homes First": "Somewhat",
+    "There is very little potential to grow although I would like to advance my career with Homes First": "No",
+    "Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization": "No",
+    "I am not interested in career growth and prefer to remain in my current role": "No"
+}
+df['Growth_Clean'] = df['Do you feel there is potential for growth at Homes First?'].map(growth_map)
+
+# ============================
+# 4. Summary statistics
+# ============================
+# Counts for Role/Department
+role_counts = df['Select the role/department that best describes your current position at Homes First.'].value_counts()
+print("Role counts:\n", role_counts)
+
+# Counts for racial identity (multi-select exploded)
+df_race = df.explode('Which racial or ethnic identity/identities best reflect you. (Select all that apply.)')
+race_counts = df_race['Which racial or ethnic identity/identities best reflect you. (Select all that apply.)'].value_counts()
+print("Race counts:\n", race_counts)
+
+# Counts for disabilities (multi-select exploded)
+df_disability = df.explode('Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)')
+disability_counts = df_disability['Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)'].value_counts()
+print("Disability counts:\n", disability_counts)
+
+# Average Likelihood to Recommend by Role
+recommend_avg = df.groupby('Select the role/department that best describes your current position at Homes First.')['How likely are you to recommend Homes First as a good place to work?'].mean()
+print("Average recommendation by role:\n", recommend_avg)
+
+# ============================
+# 5. Cross-analysis plots
+# ============================
+
+# a) Work Fulfillment by Role
+plt.figure(figsize=(12,6))
+sns.countplot(data=df, x='Select the role/department that best describes your current position at Homes First.',
+              hue='Work_Fulfillment_Clean', palette='Set2')
+plt.xticks(rotation=45, ha='right')
+plt.title('Work Fulfillment by Role')
+plt.legend(title='Fulfillment')
+plt.tight_layout()
+plt.show()
+
+# b) Likelihood to Recommend by Racial Identity
+plt.figure(figsize=(12,6))
+sns.boxplot(data=df_race, x='Which racial or ethnic identity/identities best reflect you. (Select all that apply.)',
+            y='How likely are you to recommend Homes First as a good place to work?', palette='Set3')
+plt.xticks(rotation=45, ha='right')
+plt.title('Likelihood to Recommend by Racial/Ethnic Identity')
+plt.tight_layout()
+plt.show()
+
+# c) Recognition vs Growth by Department
+cross_tab = pd.crosstab(df['Recognition_Clean'], df['Growth_Clean'], normalize='index') * 100
+plt.figure(figsize=(8,6))
+sns.heatmap(cross_tab, annot=True, fmt=".1f", cmap='Blues')
+plt.title('Recognition vs Growth (%)')
+plt.show()
+
+# d) Likelihood to Recommend vs Fulfillment
+plt.figure(figsize=(8,6))
+sns.boxplot(data=df, x='Work_Fulfillment_Clean', y='How likely are you to recommend Homes First as a good place to work?', palette='Pastel1')
+plt.title('Recommendation Score by Work Fulfillment')
+plt.show()
+
+# ============================
+# 6. Optional: export cleaned dataset
+# ============================
+df.to_csv('homes_first_survey_cleaned.csv', index=False)
