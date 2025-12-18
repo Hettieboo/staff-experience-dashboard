@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -128,7 +128,6 @@ try:
     col1, col2 = st.columns(2)
     
     with col1:
-        # By Role (Top 10)
         role_avg = df.groupby('Role')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
         role_avg = role_avg[role_avg['count'] >= 3].nlargest(10, 'mean')
         role_avg['Role_Short'] = role_avg['Role'].str[:35]
@@ -142,7 +141,6 @@ try:
         st.plotly_chart(fig1, use_container_width=True)
     
     with col2:
-        # By Ethnicity
         eth_avg = df.groupby('Ethnicity')['Recommendation_Score'].agg(['mean', 'count']).reset_index()
         eth_avg = eth_avg[eth_avg['count'] >= 3].nlargest(10, 'mean')
         eth_short = {'South Asian (including Bangladeshi, Pakistani, Indian, Sri Lankan, Indo-Caribbean, Indo-African, Indo-Fijian, West Indian)': 'South Asian',
@@ -165,11 +163,9 @@ try:
     # === SECTION 2: Work Fulfillment by Groups ===
     st.markdown("## 💼 Work Fulfillment Across Groups")
     
-    # Get top roles
     top_roles = df['Role'].value_counts().head(8).index
     role_fulfill = df[df['Role'].isin(top_roles)]
     
-    # Create percentage crosstab
     fulfill_cross = pd.crosstab(role_fulfill['Role'], 
                                 role_fulfill['Work_Fulfillment'].str[:30], 
                                 normalize='index') * 100
@@ -199,13 +195,12 @@ try:
     
     st.markdown("---")
     
-    # === SECTION 3: Recognition & Growth - HEATMAPS ===
+    # === SECTION 3: Recognition & Growth - HORIZONTAL STACKED BARS ===
     st.markdown("## 🌟 Recognition & Growth Sentiment Across Groups")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        # Recognition HEATMAP by Role
         recog_map = {'Yes, I do feel recognized and acknowledged': 'Yes',
                     'I somewhat feel recognized and acknowledged': 'Somewhat',
                     'I do find myself being recognized and acknowledged, but it\'s rare given the contributions I make': 'Rare',
@@ -214,36 +209,34 @@ try:
         
         df_recog = df.copy()
         df_recog['Recognition_Short'] = df_recog['Recognition'].map(recog_map)
-        
         role_recog = df_recog[df_recog['Role'].isin(top_roles)]
         recog_cross = pd.crosstab(role_recog['Role'], role_recog['Recognition_Short'], normalize='index') * 100
-        
-        # Reorder columns positive to negative
         col_order = ['Yes', 'Somewhat', 'Rare', 'No (Want More)', 'No (Prefer)']
         recog_cross = recog_cross[[col for col in col_order if col in recog_cross.columns]]
         
-        fig4 = go.Figure(go.Heatmap(
-            z=recog_cross.values,
-            x=recog_cross.columns,
-            y=[r[:30] for r in recog_cross.index],
-            colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-            text=[[f'{val:.0f}%' for val in row] for row in recog_cross.values],
-            texttemplate='%{text}',
-            textfont={"size": 11},
-            colorbar=dict(title="%", len=0.5),
-            hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
-        ))
-        
+        fig4 = go.Figure()
+        colors = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
+        for i, col in enumerate(recog_cross.columns):
+            fig4.add_trace(go.Bar(
+                y=[r[:35] for r in recog_cross.index],
+                x=recog_cross[col],
+                name=col,
+                orientation='h',
+                marker_color=colors[i % len(colors)],
+                text=[f'{v:.0f}%' for v in recog_cross[col]],
+                textposition='inside'
+            ))
         fig4.update_layout(
+            barmode='stack',
             title="Recognition Sentiment by Role (%)",
-            xaxis_title="Recognition Level",
+            xaxis_title="Percentage",
             yaxis_title="",
-            height=450
+            height=60 + len(recog_cross.index)*40,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
         )
         st.plotly_chart(fig4, use_container_width=True)
     
     with col2:
-        # Growth HEATMAP by Role
         growth_map = {'Yes, I do feel there is potential to grow and I hope to advance my career with Homes First': 'Yes',
                      'There is some potential to grow and I hope to advance my career with Homes First': 'Some',
                      'Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization': 'Limited',
@@ -252,37 +245,37 @@ try:
         
         df_growth = df.copy()
         df_growth['Growth_Short'] = df_growth['Growth_Potential'].map(growth_map)
-        
         role_growth = df_growth[df_growth['Role'].isin(top_roles)]
         growth_cross = pd.crosstab(role_growth['Role'], role_growth['Growth_Short'], normalize='index') * 100
-        
-        # Reorder columns
         col_order_growth = ['Yes', 'Some', 'Not Interested', 'Very Limited', 'Limited']
         growth_cross = growth_cross[[col for col in col_order_growth if col in growth_cross.columns]]
         
-        fig5 = go.Figure(go.Heatmap(
-            z=growth_cross.values,
-            x=growth_cross.columns,
-            y=[r[:30] for r in growth_cross.index],
-            colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-            text=[[f'{val:.0f}%' for val in row] for row in growth_cross.values],
-            texttemplate='%{text}',
-            textfont={"size": 11},
-            colorbar=dict(title="%", len=0.5),
-            hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
-        ))
-        
+        fig5 = go.Figure()
+        colors_growth = ['#1a9850', '#91cf60', '#fee08b', '#fc8d59', '#d73027']
+        for i, col in enumerate(growth_cross.columns):
+            fig5.add_trace(go.Bar(
+                y=[r[:35] for r in growth_cross.index],
+                x=growth_cross[col],
+                name=col,
+                orientation='h',
+                marker_color=colors_growth[i % len(colors_growth)],
+                text=[f'{v:.0f}%' for v in growth_cross[col]],
+                textposition='inside'
+            ))
         fig5.update_layout(
+            barmode='stack',
             title="Growth Potential by Role (%)",
-            xaxis_title="Growth Perception",
+            xaxis_title="Percentage",
             yaxis_title="",
-            height=450
+            height=60 + len(growth_cross.index)*40,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
         )
         st.plotly_chart(fig5, use_container_width=True)
     
     st.markdown("---")
     
-    # === SECTION 4: Heatmap - Role vs Recognition Impact on Score ===
+    # === Rest of the code remains unchanged ===
+    # SECTION 4: Heatmap - Role vs Recognition Impact on Score
     st.markdown("## 🔥 Cross-Analysis: How Role + Recognition Affect Scores")
     
     cross_data = df[df['Role'].isin(top_roles)].copy()
@@ -313,15 +306,10 @@ try:
     )
     st.plotly_chart(fig6, use_container_width=True)
     
-    st.markdown("---")
-    
-    # === SECTION 5: Disability Analysis ===
+    # SECTION 5: Disability Analysis
     st.markdown("## ♿ Disability Status Comparison")
-    
-    # Disability HEATMAP showing all metrics
     st.markdown("### Disability Impact Across Key Metrics")
     
-    # Create comprehensive disability analysis
     dis_data = []
     dis_types = df['Disability'].value_counts().head(6).index
     
@@ -350,13 +338,10 @@ try:
     
     dis_df = pd.DataFrame(dis_data).sort_values('Avg Score', ascending=True)
     
-    # Create heatmap
     metrics = ['Avg Score', 'Highly Fulfilled (%)', 'Feel Recognized (%)', 'See Growth (%)']
     z_data = dis_df[metrics].values
-    
-    # Normalize Avg Score to 0-100 scale for color consistency
     z_data_normalized = z_data.copy()
-    z_data_normalized[:, 0] = z_data_normalized[:, 0] * 10  # Scale 0-10 to 0-100
+    z_data_normalized[:, 0] = z_data_normalized[:, 0] * 10
     
     fig_dis = go.Figure(go.Heatmap(
         z=z_data_normalized,
@@ -379,18 +364,7 @@ try:
     )
     st.plotly_chart(fig_dis, use_container_width=True)
     
-    # Add insight text
     no_dis_score = df[df['Disability'].str.contains('do not identify', na=False)]['Recommendation_Score'].mean()
     mental_health_score = df[df['Disability'].str.contains('Mental health', na=False)]['Recommendation_Score'].mean()
     
     if not pd.isna(mental_health_score) and not pd.isna(no_dis_score):
-        diff = no_dis_score - mental_health_score
-        st.info(f"💡 **Key Insight:** Employees with mental health disabilities report lower satisfaction ({mental_health_score:.1f}/10) compared to those without disabilities ({no_dis_score:.1f}/10) — a gap of {diff:.1f} points. This suggests a need for enhanced mental health support programs.")
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Cross-Analysis Dashboard v1.0**")
-
-except FileNotFoundError:
-    st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
-except Exception as e:
-    st.error(f"❌ Error: {str(e)}")
