@@ -42,9 +42,8 @@ try:
     df = load_data()
 
     # ----------------------
-    # Sidebar filters
+    # Column names from dataset
     # ----------------------
-    st.sidebar.header("🔍 Filter Data")
     role_col = 'Select the role/department that best describes your current position at Homes First.'
     ethnicity_col = 'Which racial or ethnic identity/identities best reflect you. (Select all that apply.)'
     disability_col = 'Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)'
@@ -53,6 +52,10 @@ try:
     recog_col = 'Do you feel you get acknowledged and recognized for your contribution  at work?'
     growth_col = 'Do you feel there is potential for growth at Homes First?'
 
+    # ----------------------
+    # Sidebar filters
+    # ----------------------
+    st.sidebar.header("🔍 Filter Data")
     roles = ['All'] + sorted(df[role_col].dropna().unique().tolist())
     selected_role = st.sidebar.selectbox("Role/Department", roles)
 
@@ -62,7 +65,9 @@ try:
     disabilities = ['All'] + sorted(set([d.strip() for sublist in df[disability_col].dropna().str.split(',') for d in sublist]))
     selected_disability = st.sidebar.selectbox("Disability", disabilities)
 
+    # ----------------------
     # Filter the dataframe
+    # ----------------------
     filtered_df = df.copy()
     if selected_role != 'All':
         filtered_df = filtered_df[filtered_df[role_col] == selected_role]
@@ -71,13 +76,13 @@ try:
     if selected_disability != 'All':
         filtered_df = filtered_df[filtered_df[disability_col].str.contains(selected_disability, na=False)]
 
+    total = len(filtered_df)
+
     # ----------------------
-    # Header and metrics
+    # Metrics
     # ----------------------
     st.title("📊 Employee Survey Cross-Analysis Dashboard")
     st.markdown("### Compare Employee Groups Across Survey Questions")
-
-    total = len(filtered_df)
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -99,65 +104,87 @@ try:
     st.markdown("---")
 
     # ----------------------
-    # Dynamic cross-analysis
+    # Recommendation Score by Role (Horizontal Bar)
     # ----------------------
-    st.sidebar.markdown("### 🎛 Select Questions for Analysis")
-    survey_questions = [work_col, rec_col, recog_col, growth_col]
-    x_question = st.sidebar.selectbox("X-axis Question", survey_questions, index=0)
-    y_question = st.sidebar.selectbox("Y-axis Question", survey_questions, index=1 if len(survey_questions)>1 else 0)
+    role_avg = filtered_df.groupby(role_col)[rec_col].mean().reset_index()
+    fig_bar = px.bar(role_avg, x=rec_col, y=role_col, orientation='h', text=rec_col, title="Average Recommendation by Role")
+    fig_bar.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+    fig_bar.update_layout(height=60*len(role_avg)+200, margin=dict(l=250, r=50, t=100, b=50), xaxis_range=[0,10])
+    st.plotly_chart(fig_bar, use_container_width=True)
 
-    chart_type = st.sidebar.radio("Chart Type", ['Bar', 'Stacked Bar', 'Heatmap', 'Scatter'])
+    # ----------------------
+    # Recognition Distribution (Donut)
+    # ----------------------
+    fig_donut = px.pie(filtered_df, names=recog_col, title="Recognition Distribution", hole=0.4)
+    fig_donut.update_traces(textposition='outside', textinfo='percent+label')
+    fig_donut.update_layout(height=500)
+    st.plotly_chart(fig_donut, use_container_width=True)
 
-    st.markdown(f"## 📈 {x_question} vs {y_question}")
-
-    # Create chart
-    if chart_type == 'Bar':
-        if filtered_df[y_question].dtype in [int, float]:
-            agg_df = filtered_df.groupby(role_col)[y_question].mean().reset_index()
-            fig = px.bar(agg_df, x=y_question, y=role_col, orientation='h', text=y_question, title=f"Average {y_question} by Role")
-            fig.update_layout(yaxis={'categoryorder':'total ascending'})
-        else:
-            agg_df = pd.crosstab(filtered_df[role_col], filtered_df[y_question])
-            fig = px.bar(agg_df, y=agg_df.index, x=agg_df.columns, orientation='h', title=f"{y_question} Distribution by Role", text_auto=True)
-    elif chart_type == 'Stacked Bar':
-        agg_df = pd.crosstab(filtered_df[role_col], filtered_df[y_question], normalize='index')*100
-        fig = go.Figure()
-        colors = px.colors.qualitative.Pastel
-        for i, col in enumerate(agg_df.columns):
-            fig.add_trace(go.Bar(
-                y=[r[:35] for r in agg_df.index],
-                x=agg_df[col],
-                name=col,
-                orientation='h',
-                marker_color=colors[i % len(colors)],
-                text=[f'{v:.0f}%' for v in agg_df[col]],
-                textposition='inside'
-            ))
-        fig.update_layout(barmode='stack', xaxis_title="Percentage", yaxis_title="", height=500, title=f"{y_question} by Role (%)")
-    elif chart_type == 'Heatmap':
-        agg_df = pd.crosstab(filtered_df[role_col], filtered_df[y_question], normalize='index')*100
-        fig = go.Figure(go.Heatmap(
-            z=agg_df.values,
-            x=agg_df.columns,
-            y=[r[:50] for r in agg_df.index],
-            colorscale='RdYlGn',
-            text=[[f'{v:.0f}%' for v in row] for row in agg_df.values],
-            texttemplate='%{text}',
-            textfont={"size":11},
-            hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
+    # ----------------------
+    # Growth Potential (Stacked Bar)
+    # ----------------------
+    growth_cross = pd.crosstab(filtered_df[role_col], filtered_df[growth_col], normalize='index')*100
+    fig_stack = go.Figure()
+    colors = px.colors.qualitative.Pastel
+    for i, col in enumerate(growth_cross.columns):
+        fig_stack.add_trace(go.Bar(
+            y=[r[:35] for r in growth_cross.index],
+            x=growth_cross[col],
+            name=col,
+            orientation='h',
+            marker_color=colors[i % len(colors)],
+            text=[f'{v:.0f}%' for v in growth_cross[col]],
+            textposition='inside'
         ))
-        fig.update_layout(title=f"{y_question} by Role (%)", xaxis_title=y_question, yaxis_title="", height=700)
-    elif chart_type == 'Scatter':
-        if filtered_df[y_question].dtype in [int,float] and filtered_df[x_question].dtype in [int,float]:
-            fig = px.scatter(filtered_df, x=x_question, y=y_question, color=role_col, hover_data=[ethnicity_col, disability_col])
-        else:
-            st.warning("Scatter plot requires numeric fields for X and Y.")
-            fig = go.Figure()
+    fig_stack.update_layout(barmode='stack', xaxis_title="Percentage", yaxis_title="", height=60*len(growth_cross)+200, margin=dict(l=250, r=50, t=100, b=50), title="Growth Potential by Role (%)")
+    st.plotly_chart(fig_stack, use_container_width=True)
 
-    st.plotly_chart(fig, use_container_width=True)
+    # ----------------------
+    # Work Fulfillment (Stacked Bar)
+    # ----------------------
+    fulfill_cross = pd.crosstab(filtered_df[role_col], filtered_df[work_col], normalize='index')*100
+    fig_fulfill = go.Figure()
+    for i, col in enumerate(fulfill_cross.columns):
+        fig_fulfill.add_trace(go.Bar(
+            y=[r[:35] for r in fulfill_cross.index],
+            x=fulfill_cross[col],
+            name=col,
+            orientation='h',
+            text=[f'{v:.0f}%' for v in fulfill_cross[col]],
+            textposition='inside',
+            marker_color=colors[i % len(colors)]
+        ))
+    fig_fulfill.update_layout(barmode='stack', xaxis_title="Percentage", yaxis_title="", height=60*len(fulfill_cross)+200, margin=dict(l=250, r=50, t=100, b=50), title="Work Fulfillment by Role (%)")
+    st.plotly_chart(fig_fulfill, use_container_width=True)
+
+    # ----------------------
+    # Recognition Heatmap (Dark Background)
+    # ----------------------
+    recog_cross = pd.crosstab(filtered_df[role_col], filtered_df[recog_col], normalize='index')*100
+    fig_heat = go.Figure(go.Heatmap(
+        z=recog_cross.values,
+        x=recog_cross.columns,
+        y=[r[:50] for r in recog_cross.index],
+        colorscale='Viridis',
+        zmin=0, zmax=100,
+        text=[[f'{v:.0f}%' for v in row] for row in recog_cross.values],
+        texttemplate='%{text}',
+        textfont={"size":11},
+    ))
+    fig_heat.update_layout(
+        title="Recognition by Role (%)",
+        xaxis_title="Recognition Level",
+        yaxis_title="",
+        height=60*len(recog_cross)+200,
+        plot_bgcolor='#1e1e1e',
+        paper_bgcolor='#1e1e1e',
+        font=dict(color='white'),
+        margin=dict(l=250, r=50, t=100, b=50)
+    )
+    st.plotly_chart(fig_heat, use_container_width=True)
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Dynamic Cross-Analysis Dashboard v2.0**")
+    st.sidebar.markdown("**Enhanced Cross-Analysis Dashboard v3.0**")
 
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
