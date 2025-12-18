@@ -3,101 +3,57 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 
-# Page configuration
+# --- Page Config ---
 st.set_page_config(page_title="Survey Cross-Analysis", page_icon="📊", layout="wide")
 
-# Custom CSS
-st.markdown("""
-    <style>
-    .main {padding: 0rem 1rem;}
-    h1 {color: #2c3e50; padding-bottom: 10px;}
-    h2 {color: #34495e; padding-top: 15px; padding-bottom: 10px;}
-    </style>
-""", unsafe_allow_html=True)
-
-# Load data
+# --- Load Data ---
 @st.cache_data
 def load_data():
-    df = pd.read_excel('Combined- Cross Analysis.xlsx')
-    df = df.iloc[:, :7]
+    df = pd.read_excel('/mnt/data/Combined- Cross Analysis.xlsx')
     df.columns = [
-        'Role', 
-        'Ethnicity', 
-        'Disability', 
-        'Work_Fulfillment', 
-        'Recommendation_Score', 
-        'Recognition', 
-        'Growth_Potential'
+        'Role', 'Ethnicity', 'Disability', 'Work_Fulfillment',
+        'Recommendation_Score', 'Recognition', 'Growth_Potential'
     ]
+    target_roles = [
+        "Administrator",
+        "Coordinator",
+        "Prefer not to disclose/other",
+        "Generalist",
+        "Analyst",
+        "Supervisor (Shelters/Housing)",
+        "Director/Assistant Director/Manager/Assistant Manager (HR/Finance/Property/Fundraising/Development)",
+        "Director/Assistant Director/Manager/Assistant Manager/Site Manager (Shelters/Housing)",
+        "Supervisor (HR/Finance/Property/Fundraising/Development)",
+        "CSW - Shelters",
+        "Non-24 Hour Program (including ICM, follow-up supports and PSW)",
+        "Relief",
+        "ICM - Shelters (includes ICM, HHW, Community Engagement, ICM Health Standards, etc.)",
+        "Other (Smaller departments/teams not listed seperately in an effort to maintain confidentiality)"
+    ]
+    df = df[df['Role'].isin(target_roles)]
     return df
 
 df = load_data()
 
-# Filter target roles
-target_roles = [
-    "Administrator",
-    "Coordinator",
-    "Prefer not to disclose/other",
-    "Generalist",
-    "Analyst",
-    "Supervisor (Shelters/Housing)",
-    "Director/Assistant Director/Manager/Assistant Manager (HR/Finance/Property/Fundraising/Development)",
-    "Director/Assistant Director/Manager/Assistant Manager/Site Manager (Shelters/Housing)",
-    "Supervisor (HR/Finance/Property/Fundraising/Development)",
-    "CSW - Shelters",
-    "Non-24 Hour Program (including ICM, follow-up supports and PSW)",
-    "Relief",
-    "ICM - Shelters (includes ICM, HHW, Community Engagement, ICM Health Standards, etc.)",
-    "Other (Smaller departments/teams not listed seperately in an effort to maintain confidentiality)"
-]
-
-df = df[df['Role'].isin(target_roles)]
-
-# Sidebar filters
+# --- Sidebar Filters ---
 st.sidebar.header("🔍 Filter Data")
 roles = ['All'] + sorted(df['Role'].unique().tolist())
 selected_role = st.sidebar.selectbox("Role/Department", roles)
 
-ethnicities = ['All'] + sorted(df['Ethnicity'].unique().tolist())
-selected_ethnicity = st.sidebar.selectbox("Ethnicity", ethnicities)
+ethnicities = ['All'] + sorted(set(sum(df['Ethnicity'].dropna().str.split(','), [])))
+ethnicities = [e.strip() for e in ethnicities]
+selected_ethnicity = st.sidebar.selectbox("Ethnicity", ['All'] + ethnicities)
 
-# Apply filters
+# --- Apply Filters ---
 filtered_df = df.copy()
 if selected_role != 'All':
     filtered_df = filtered_df[filtered_df['Role'] == selected_role]
 if selected_ethnicity != 'All':
-    filtered_df = filtered_df[filtered_df['Ethnicity'].str.contains(selected_ethnicity)]
+    filtered_df = filtered_df[filtered_df['Ethnicity'].str.contains(selected_ethnicity, na=False)]
 
 total = len(filtered_df)
 
-# Header
-st.title("📊 Employee Survey Cross-Analysis Dashboard")
-st.markdown("### Comparing Employee Groups Across Survey Questions")
-
-# Metric Cards
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric("Total Responses", total)
-
-with col2:
-    avg_score = filtered_df['Recommendation_Score'].mean()
-    st.metric("Avg Recommendation", f"{avg_score:.1f}/10" if total > 0 else "N/A")
-
-with col3:
-    promoters = len(filtered_df[filtered_df['Recommendation_Score'] >= 9])
-    detractors = len(filtered_df[filtered_df['Recommendation_Score'] <= 6])
-    nps = ((promoters - detractors) / total * 100) if total > 0 else 0
-    st.metric("NPS Score", f"{nps:.0f}" if total > 0 else "N/A")
-
-with col4:
-    fulfilled = len(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)])
-    pct = (fulfilled / total * 100) if total > 0 else 0
-    st.metric("Highly Fulfilled", f"{pct:.0f}%" if total > 0 else "N/A")
-
-st.markdown("---")
-
-# === Recognition & Growth Sentiment Mapping ===
+# --- Map Recognition & Growth ---
 recog_map = {
     'Yes, I do feel recognized and acknowledged': 'Yes',
     'I somewhat feel recognized and acknowledged': 'Somewhat',
@@ -117,60 +73,71 @@ growth_map = {
 filtered_df['Recognition_Short'] = filtered_df['Recognition'].map(recog_map).fillna('No Response')
 filtered_df['Growth_Short'] = filtered_df['Growth_Potential'].map(growth_map).fillna('No Response')
 
-# Crosstabs
-recog_cross = pd.crosstab(
-    filtered_df['Role'], filtered_df['Recognition_Short'], normalize='index'
-).fillna(0) * 100
-growth_cross = pd.crosstab(
-    filtered_df['Role'], filtered_df['Growth_Short'], normalize='index'
-).fillna(0) * 100
+# --- Metrics ---
+st.title("📊 Employee Survey Cross-Analysis Dashboard")
+st.markdown("### Comparing Employee Groups Across Survey Questions")
 
-# Truncate long role names
-truncated_roles = [r if len(r) <= 25 else r[:22] + '...' for r in recog_cross.index]
+col1, col2, col3, col4 = st.columns(4)
 
-# Function for dynamic font color (returns same shape as z.T)
-def font_color_2d(z_values):
-    return [['white' if v > 50 else 'black' for v in row] for row in z_values.T]
+with col1:
+    st.metric("Total Responses", total)
 
-# Recognition Heatmap
+with col2:
+    avg_score = filtered_df['Recommendation_Score'].mean() if total > 0 else 0
+    st.metric("Avg Recommendation", f"{avg_score:.1f}/10")
+
+with col3:
+    promoters = len(filtered_df[filtered_df['Recommendation_Score'] >= 9])
+    detractors = len(filtered_df[filtered_df['Recommendation_Score'] <= 6])
+    nps = ((promoters - detractors) / total * 100) if total > 0 else 0
+    st.metric("NPS Score", f"{nps:.0f}")
+
+with col4:
+    fulfilled = len(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)])
+    pct = (fulfilled / total * 100) if total > 0 else 0
+    st.metric("Highly Fulfilled", f"{pct:.0f}%")
+
+st.markdown("---")
+
+# --- Crosstabs ---
+recog_cross_role = pd.crosstab(filtered_df['Role'], filtered_df['Recognition_Short'], normalize='index').fillna(0) * 100
+growth_cross_role = pd.crosstab(filtered_df['Role'], filtered_df['Growth_Short'], normalize='index').fillna(0) * 100
+
+# --- Truncate role names ---
+truncated_roles = [r if len(r) <= 25 else r[:22] + "..." for r in recog_cross_role.index]
+
+# --- Font color matrix ---
+def font_color_matrix(z):
+    return [['white' if v > 50 else 'black' for v in row] for row in z]
+
+# --- Recognition Heatmap ---
 fig_recog = go.Figure(go.Heatmap(
-    z=recog_cross.values.T,
-    x=truncated_roles,
-    y=recog_cross.columns,
+    z=recog_cross_role.values,
+    x=recog_cross_role.columns,
+    y=truncated_roles,
     colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-    text=np.round(recog_cross.values.T, 0),
+    text=np.round(recog_cross_role.values, 0),
     texttemplate="%{text}%",
-    textfont=dict(color=font_color_2d(recog_cross.values)),
-    hovertemplate='<b>%{x}</b><br>%{y}: %{z:.1f}%<extra></extra>'
+    textfont=dict(color=font_color_matrix(recog_cross_role.values)),
+    hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
 ))
-fig_recog.update_layout(
-    title="Recognition Sentiment by Role (%)",
-    xaxis_title="Role",
-    yaxis_title="Recognition Level",
-    height=500,
-    margin=dict(t=100, b=50)
-)
+fig_recog.update_layout(title="Recognition Sentiment by Role (%)", xaxis_title="Recognition Level", yaxis_title="Role", height=500)
 
-# Growth Heatmap
+# --- Growth Heatmap ---
 fig_growth = go.Figure(go.Heatmap(
-    z=growth_cross.values.T,
-    x=truncated_roles,
-    y=growth_cross.columns,
+    z=growth_cross_role.values,
+    x=growth_cross_role.columns,
+    y=truncated_roles,
     colorscale=[[0, '#d73027'], [0.5, '#fee08b'], [1, '#1a9850']],
-    text=np.round(growth_cross.values.T, 0),
+    text=np.round(growth_cross_role.values, 0),
     texttemplate="%{text}%",
-    textfont=dict(color=font_color_2d(growth_cross.values)),
-    hovertemplate='<b>%{x}</b><br>%{y}: %{z:.1f}%<extra></extra>'
+    textfont=dict(color=font_color_matrix(growth_cross_role.values)),
+    hovertemplate='<b>%{y}</b><br>%{x}: %{z:.1f}%<extra></extra>'
 ))
-fig_growth.update_layout(
-    title="Growth Potential by Role (%)",
-    xaxis_title="Role",
-    yaxis_title="Growth Perception",
-    height=500,
-    margin=dict(t=100, b=50)
-)
+fig_growth.update_layout(title="Growth Potential by Role (%)", xaxis_title="Growth Perception", yaxis_title="Role", height=500)
 
-# Display heatmaps
+# --- Display Heatmaps ---
+st.markdown("## 🌟 Recognition & Growth Sentiment Across Roles")
 col1, col2 = st.columns(2)
 col1.plotly_chart(fig_recog, use_container_width=True)
 col2.plotly_chart(fig_growth, use_container_width=True)
