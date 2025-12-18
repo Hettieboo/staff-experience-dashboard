@@ -18,7 +18,7 @@ st.set_page_config(
 # -------------------------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_excel("Combined- Cross Analysis.xlsx")
+   df = pd.read_excel("Combined- Cross Analysis.xlsx")
     df = df.iloc[:, :7]
     df.columns = [
         "Role",
