@@ -15,9 +15,11 @@ st.set_page_config(
 # -----------------------------
 # LOAD DATA
 # -----------------------------
+import pandas as pd
+
 @st.cache_data
 def load_data():
-    df = pd.read_csv("homes_first_survey.csv")  # Update path if needed
+    df = pd.read_excel("homes_first_survey.xlsx")  # Update path if needed
     return df
 
 df = load_data()
