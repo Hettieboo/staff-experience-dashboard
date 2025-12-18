@@ -1,16 +1,36 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 
 # --------------------------------------------------
 # PAGE CONFIG
 # --------------------------------------------------
 st.set_page_config(
     page_title="Staff Experience Cross Analysis",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("Staff Experience & Job Fulfillment – Cross Analysis")
+# Custom CSS for better styling
+st.markdown("""
+    <style>
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 10px 20px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("📊 Staff Experience & Job Fulfillment – Cross Analysis")
 st.markdown(
     """
     This dashboard examines whether demographic and organizational factors
@@ -19,7 +39,7 @@ st.markdown(
 )
 
 # --------------------------------------------------
-# LOAD DATA (FROM REPO)
+# LOAD DATA
 # --------------------------------------------------
 @st.cache_data
 def load_data():
@@ -27,7 +47,11 @@ def load_data():
     df = df.fillna("No response")
     return df
 
-df = load_data()
+try:
+    df = load_data()
+except FileNotFoundError:
+    st.error("⚠️ Data file not found. Please ensure 'Combined- Cross Analysis.xlsx' is in the correct directory.")
+    st.stop()
 
 # --------------------------------------------------
 # COLUMN DEFINITIONS
@@ -42,28 +66,51 @@ recognition_col = "Do you feel you get acknowledged and recognized for your cont
 growth_col = "Do you feel there is potential for growth at Homes First?"
 
 # --------------------------------------------------
-# KPI CALCULATIONS (SAFE STRING HANDLING)
+# SIDEBAR FILTERS
 # --------------------------------------------------
-st.header("Key Staff Experience Indicators")
+st.sidebar.header("🔍 Filters")
 
-total_responses = len(df)
+# Role filter
+roles = ["All"] + sorted([r for r in df[role_col].unique() if r != "No response"])
+selected_role = st.sidebar.selectbox("Filter by Role/Department", roles)
+
+# Apply filters
+filtered_df = df.copy()
+if selected_role != "All":
+    filtered_df = filtered_df[filtered_df[role_col] == selected_role]
+
+st.sidebar.metric("Filtered Responses", len(filtered_df))
+
+# --------------------------------------------------
+# KPI SECTION
+# --------------------------------------------------
+st.header("📈 Key Staff Experience Indicators")
+
+total_responses = len(filtered_df)
 
 high_fulfillment = (
-    df[fulfillment_col]
+    filtered_df[fulfillment_col]
     .astype(str)
     .str.contains("Very|Extremely", case=False, na=False)
     .sum()
 )
 
 recommend_positive = (
-    df[recommend_col]
+    filtered_df[recommend_col]
     .astype(str)
     .str.contains("Very|Extremely|Likely", case=False, na=False)
     .sum()
 )
 
 growth_positive = (
-    df[growth_col]
+    filtered_df[growth_col]
+    .astype(str)
+    .str.contains("Yes", case=False, na=False)
+    .sum()
+)
+
+recognition_positive = (
+    filtered_df[recognition_col]
     .astype(str)
     .str.contains("Yes", case=False, na=False)
     .sum()
@@ -71,64 +118,125 @@ growth_positive = (
 
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("Total Responses", total_responses)
+col1.metric(
+    "📋 Total Responses", 
+    total_responses,
+    delta=None
+)
 
 col2.metric(
-    "High Job Fulfillment",
-    high_fulfillment,
-    f"{high_fulfillment / total_responses:.0%}"
+    "😊 High Job Fulfillment",
+    f"{high_fulfillment / total_responses:.0%}",
+    delta=f"{high_fulfillment} respondents"
 )
 
 col3.metric(
-    "Would Recommend Homes First",
-    recommend_positive,
-    f"{recommend_positive / total_responses:.0%}"
+    "👍 Would Recommend",
+    f"{recommend_positive / total_responses:.0%}",
+    delta=f"{recommend_positive} respondents"
 )
 
 col4.metric(
-    "Perceived Growth Opportunities",
-    growth_positive,
-    f"{growth_positive / total_responses:.0%}"
+    "📈 See Growth Potential",
+    f"{growth_positive / total_responses:.0%}",
+    delta=f"{growth_positive} respondents"
 )
 
 # --------------------------------------------------
-# CROSS-ANALYSIS FUNCTION
+# CROSS-ANALYSIS FUNCTION WITH PLOTLY
 # --------------------------------------------------
-def cross_analysis(factor_col, title):
+def cross_analysis_interactive(factor_col, title, df_data):
     st.subheader(title)
-
-    cross_tab = (
-        pd.crosstab(
-            df[factor_col].astype(str),
-            df[fulfillment_col].astype(str),
+    
+    # Create tabs for different views
+    tab1, tab2, tab3 = st.tabs(["📊 Stacked Bar", "📈 Breakdown Table", "🎯 Satisfaction Score"])
+    
+    with tab1:
+        # Calculate cross-tabulation
+        cross_tab = pd.crosstab(
+            df_data[factor_col].astype(str),
+            df_data[fulfillment_col].astype(str),
             normalize="index"
         ) * 100
-    ).round(1)
-
-    st.dataframe(cross_tab)
-
-    fig, ax = plt.subplots()
-    cross_tab.plot(kind="bar", stacked=True, ax=ax)
-    ax.set_ylabel("Percentage (%)")
-    ax.set_xlabel("")
-    ax.set_title("Distribution of Job Fulfillment")
-    plt.xticks(rotation=45, ha="right")
-
-    st.pyplot(fig)
+        
+        # Create interactive stacked bar chart
+        fig = go.Figure()
+        
+        for col in cross_tab.columns:
+            fig.add_trace(go.Bar(
+                name=col,
+                x=cross_tab.index,
+                y=cross_tab[col],
+                text=[f"{val:.1f}%" for val in cross_tab[col]],
+                textposition='auto',
+            ))
+        
+        fig.update_layout(
+            barmode='stack',
+            title="Distribution of Job Fulfillment (%)",
+            xaxis_title="",
+            yaxis_title="Percentage",
+            height=500,
+            hovermode='x unified',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with tab2:
+        # Show detailed breakdown
+        cross_tab_display = cross_tab.round(1)
+        cross_tab_display['Total Responses'] = df_data.groupby(factor_col).size()
+        st.dataframe(cross_tab_display, use_container_width=True)
+    
+    with tab3:
+        # Calculate satisfaction scores
+        satisfaction_map = {
+            'Extremely fulfilling': 5,
+            'Very fulfilling': 4,
+            'Moderately fulfilling': 3,
+            'Slightly fulfilling': 2,
+            'Not at all fulfilling': 1
+        }
+        
+        temp_df = df_data.copy()
+        temp_df['score'] = temp_df[fulfillment_col].astype(str).map(satisfaction_map)
+        
+        avg_scores = temp_df.groupby(factor_col)['score'].agg(['mean', 'count']).reset_index()
+        avg_scores.columns = ['Category', 'Avg Score', 'Count']
+        avg_scores = avg_scores.sort_values('Avg Score', ascending=False)
+        
+        fig = px.bar(
+            avg_scores,
+            x='Category',
+            y='Avg Score',
+            text='Avg Score',
+            color='Avg Score',
+            color_continuous_scale='RdYlGn',
+            range_color=[1, 5],
+            title="Average Satisfaction Score (1-5 scale)"
+        )
+        
+        fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+        fig.update_layout(height=500, showlegend=False)
+        
+        st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------
 # CROSS-ANALYSIS SECTIONS
 # --------------------------------------------------
-st.header("Cross Analysis Results")
+st.header("🔄 Cross Analysis Results")
 
-cross_analysis(role_col, "Job Fulfillment by Role / Department")
-cross_analysis(race_col, "Job Fulfillment by Race / Ethnicity")
-cross_analysis(disability_col, "Job Fulfillment by Disability Status")
+cross_analysis_interactive(role_col, "Job Fulfillment by Role / Department", filtered_df)
+st.divider()
+cross_analysis_interactive(race_col, "Job Fulfillment by Race / Ethnicity", filtered_df)
+st.divider()
+cross_analysis_interactive(disability_col, "Job Fulfillment by Disability Status", filtered_df)
 
 # --------------------------------------------------
 # EXPERIENCE DRIVERS
 # --------------------------------------------------
-st.header("Key Drivers of Staff Experience")
+st.header("🎯 Key Drivers of Staff Experience")
 
 driver_map = {
     "Recognition at Work": recognition_col,
@@ -136,56 +244,125 @@ driver_map = {
     "Likelihood to Recommend": recommend_col,
 }
 
-for label, col in driver_map.items():
-    st.subheader(label)
+cols = st.columns(3)
 
-    breakdown = (
-        df[col]
-        .astype(str)
-        .value_counts(normalize=True) * 100
-    ).round(1)
+for idx, (label, col) in enumerate(driver_map.items()):
+    with cols[idx]:
+        st.subheader(label)
+        
+        breakdown = (
+            filtered_df[col]
+            .astype(str)
+            .value_counts(normalize=True) * 100
+        ).round(1)
+        
+        # Create pie chart
+        fig = px.pie(
+            values=breakdown.values,
+            names=breakdown.index,
+            title=f"{label} Distribution",
+            hole=0.4
+        )
+        
+        fig.update_traces(textinfo='percent+label', textposition='auto')
+        fig.update_layout(height=400, showlegend=True)
+        
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.dataframe(breakdown)
+# --------------------------------------------------
+# CORRELATION HEATMAP
+# --------------------------------------------------
+st.header("🔗 Experience Factor Correlations")
+
+# Create a simplified correlation matrix
+binary_cols = {
+    'High Fulfillment': filtered_df[fulfillment_col].astype(str).str.contains("Very|Extremely", case=False, na=False).astype(int),
+    'Would Recommend': filtered_df[recommend_col].astype(str).str.contains("Very|Extremely|Likely", case=False, na=False).astype(int),
+    'Recognized': filtered_df[recognition_col].astype(str).str.contains("Yes", case=False, na=False).astype(int),
+    'Growth Potential': filtered_df[growth_col].astype(str).str.contains("Yes", case=False, na=False).astype(int),
+}
+
+corr_df = pd.DataFrame(binary_cols)
+correlation_matrix = corr_df.corr()
+
+fig = px.imshow(
+    correlation_matrix,
+    text_auto='.2f',
+    aspect="auto",
+    color_continuous_scale='RdYlGn',
+    title="Correlation Between Experience Factors"
+)
+
+st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------
 # INSIGHTS & RECOMMENDATIONS
 # --------------------------------------------------
-st.header("Insights & Recommendations")
+st.header("💡 Insights & Recommendations")
 
-st.markdown(
-    """
-### Key Insights
-- Job fulfillment varies significantly across **roles and departments**,
-  suggesting operational context strongly shapes staff experience.
-- Perceived **career growth opportunities** are closely linked to
-  higher fulfillment and stronger advocacy for the organization.
-- Differences across **race, ethnicity, and disability status**
-  indicate uneven staff experiences that may reflect systemic or
-  accessibility-related factors.
-- Recognition and acknowledgment consistently emerge as
-  strong drivers of positive sentiment.
+insight_tab, rec_tab = st.tabs(["Key Insights", "Recommendations"])
 
-### Recommendations
-**1. Role-Specific Engagement Strategies**  
-Target roles with lower fulfillment for workload review, management support,
-and tailored engagement initiatives.
+with insight_tab:
+    st.markdown("""
+    ### 🔍 Key Insights
+    
+    - **Role Variation**: Job fulfillment varies significantly across roles and departments,
+      suggesting operational context strongly shapes staff experience.
+      
+    - **Growth Connection**: Perceived career growth opportunities are closely linked to
+      higher fulfillment and stronger advocacy for the organization.
+      
+    - **Equity Gaps**: Differences across race, ethnicity, and disability status
+      indicate uneven staff experiences that may reflect systemic or
+      accessibility-related factors.
+      
+    - **Recognition Impact**: Recognition and acknowledgment consistently emerge as
+      strong drivers of positive sentiment.
+    """)
 
-**2. Strengthen Career Pathways**  
-Clearly communicate advancement opportunities, professional development
-options, and internal mobility pathways.
+with rec_tab:
+    st.markdown("""
+    ### 🎯 Recommendations
+    
+    **1. Role-Specific Engagement Strategies**  
+    Target roles with lower fulfillment for workload review, management support,
+    and tailored engagement initiatives.
+    
+    **2. Strengthen Career Pathways**  
+    Clearly communicate advancement opportunities, professional development
+    options, and internal mobility pathways.
+    
+    **3. Formalize Recognition Mechanisms**  
+    Introduce consistent, organization-wide recognition practices to ensure
+    visibility of staff contributions.
+    
+    **4. Deepen Equity & Inclusion Efforts**  
+    Conduct qualitative follow-ups with under-represented groups to identify
+    barriers impacting experience and fulfillment.
+    
+    **5. Monitor Progress Over Time**  
+    Use this dashboard longitudinally to assess whether interventions lead to
+    measurable improvements in staff experience.
+    """)
 
-**3. Formalize Recognition Mechanisms**  
-Introduce consistent, organization-wide recognition practices to ensure
-visibility of staff contributions.
+# --------------------------------------------------
+# EXPORT OPTIONS
+# --------------------------------------------------
+st.header("📥 Export Data")
 
-**4. Deepen Equity & Inclusion Efforts**  
-Conduct qualitative follow-ups with under-represented groups to identify
-barriers impacting experience and fulfillment.
+col1, col2 = st.columns(2)
 
-**5. Monitor Progress Over Time**  
-Use this dashboard longitudinally to assess whether interventions lead to
-measurable improvements in staff experience.
-"""
-)
+with col1:
+    csv = filtered_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download Filtered Data as CSV",
+        data=csv,
+        file_name="staff_experience_filtered.csv",
+        mime="text/csv"
+    )
 
-st.caption("This analysis supports evidence-based people and culture decision-making.")
+with col2:
+    st.info("💡 Tip: Use filters in the sidebar to refine your analysis before exporting.")
+
+st.divider()
+st.caption("📊 This analysis supports evidence-based people and culture decision-making.")
