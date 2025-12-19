@@ -282,27 +282,58 @@ with tab3:
     # Calculate correlation
     corr_matrix = df_corr.corr()
     
-    # Create correlation heatmap
+    # Create correlation heatmap with FULL question text
+    question_labels = [
+        'How fulfilling and<br>rewarding do you find<br>your work?',
+        'Do you feel you get<br>acknowledged and recognized<br>for your contribution at work?',
+        'Do you feel there is<br>potential for growth<br>at Homes First?',
+        'How likely are you to<br>recommend Homes First<br>as a good place to work?'
+    ]
+    
+    # Convert correlation values to relationship strength labels
+    def get_relationship_strength(val):
+        if val == 1.0:
+            return "Same Question"
+        elif val >= 0.7:
+            return f"Very Strong<br>({val:.2f})"
+        elif val >= 0.5:
+            return f"Strong<br>({val:.2f})"
+        elif val >= 0.3:
+            return f"Moderate<br>({val:.2f})"
+        elif val >= 0.1:
+            return f"Weak<br>({val:.2f})"
+        else:
+            return f"Very Weak<br>({val:.2f})"
+    
+    text_labels = [[get_relationship_strength(val) for val in row] for row in corr_matrix.values]
+    
     fig_corr = go.Figure(data=go.Heatmap(
         z=corr_matrix.values,
-        x=['Work Fulfillment', 'Recognition', 'Growth Potential', 'Recommendation'],
-        y=['Work Fulfillment', 'Recognition', 'Growth Potential', 'Recommendation'],
+        x=question_labels,
+        y=question_labels,
         colorscale='RdYlGn',
         zmid=0,
         zmin=-1,
         zmax=1,
-        text=[[f'{val:.2f}' for val in row] for row in corr_matrix.values],
+        text=text_labels,
         texttemplate='%{text}',
-        textfont={"size": 14},
-        colorbar=dict(title="Correlation<br>Coefficient")
+        textfont={"size": 11, "color": "white"},
+        colorbar=dict(
+            title="Relationship<br>Strength", 
+            len=0.7,
+            tickvals=[0, 0.3, 0.5, 0.7, 1.0],
+            ticktext=["Weak", "Moderate", "Strong", "Very Strong", "Perfect"]
+        )
     ))
     
     fig_corr.update_layout(
-        title="Correlation Analysis: How Survey Metrics Relate to Each Other",
+        title="Question Relationship Analysis: Which Answers Tend to Go Together?",
         xaxis_title='',
         yaxis_title='',
-        height=500,
-        margin=dict(l=150, r=50, t=100, b=100)
+        height=600,
+        margin=dict(l=250, r=50, t=100, b=200),
+        xaxis=dict(tickangle=-30, tickfont=dict(size=11)),
+        yaxis=dict(tickfont=dict(size=11))
     )
     
     st.plotly_chart(fig_corr, use_container_width=True)
@@ -315,28 +346,38 @@ with tab3:
     for i in range(len(corr_matrix.columns)):
         for j in range(i+1, len(corr_matrix.columns)):
             corr_pairs.append({
-                'Metric 1': corr_matrix.columns[i],
-                'Metric 2': corr_matrix.columns[j],
-                'Correlation': corr_matrix.iloc[i, j]
+                'Question 1': question_labels[i].replace('<br>', ' '),
+                'Question 2': question_labels[j].replace('<br>', ' '),
+                'Strength': corr_matrix.iloc[i, j]
             })
     
-    corr_df = pd.DataFrame(corr_pairs).sort_values('Correlation', ascending=False)
+    corr_df = pd.DataFrame(corr_pairs).sort_values('Strength', ascending=False)
     
-    st.markdown("**Strongest Positive Correlations:**")
+    def strength_label(val):
+        if val >= 0.7:
+            return "Very Strong"
+        elif val >= 0.5:
+            return "Strong"
+        elif val >= 0.3:
+            return "Moderate"
+        else:
+            return "Weak"
+    
+    st.markdown("**Strongest Relationships Between Questions:**")
     for idx, row in corr_df.head(3).iterrows():
-        metric1_name = row['Metric 1'].replace('_Score', '').replace('_', ' ')
-        metric2_name = row['Metric 2'].replace('_Score', '').replace('_', ' ')
-        st.markdown(f"- {metric1_name} ↔ {metric2_name}: **{row['Correlation']:.2f}**")
+        st.markdown(f"- **{strength_label(row['Strength'])}** relationship ({row['Strength']:.2f})")
+        st.markdown(f"  - When employees answer positively to *'{row['Question 1']}'*")
+        st.markdown(f"  - They also tend to answer positively to *'{row['Question 2']}'*")
+        st.markdown("")
     
-    st.markdown("")
-    st.markdown("**Interpretation:**")
-    st.markdown("- Values close to **1.0** indicate strong positive correlation (when one increases, the other tends to increase)")
-    st.markdown("- Values close to **0.0** indicate weak or no correlation")
-    st.markdown("- Values close to **-1.0** indicate strong negative correlation (when one increases, the other tends to decrease)")
+    st.markdown("**What This Means:**")
+    st.markdown("- **Very Strong/Strong** (0.7-1.0): These questions are closely linked - improving one likely improves the other")
+    st.markdown("- **Moderate** (0.3-0.7): Some connection exists between these areas")
+    st.markdown("- **Weak** (0-0.3): These questions measure different aspects of employee experience")
     st.markdown("")
     st.markdown("**Actionable Recommendations:**")
-    st.markdown("- Focus on improving the metrics with the strongest correlations to Recommendation Score")
-    st.markdown("- If Work Fulfillment and Recognition are highly correlated, improving recognition programs may also boost fulfillment")
+    st.markdown("- Focus on the questions most strongly related to 'Recommend Homes First' - these have the biggest impact")
+    st.markdown("- If two questions are strongly linked, solving one issue may help solve both")
 
 # ------------------- STACKED BARS -------------------
 st.markdown("---")
