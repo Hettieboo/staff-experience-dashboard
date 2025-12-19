@@ -272,5 +272,3 @@ with col2:
                   labels={'x': 'Count', 'y': 'Disability'})
     fig8.update_layout(height=dis_height)
     st.plotly_chart(fig8, use_container_width=True)
-```
-
