@@ -2,12 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
 
 # Page config
 st.set_page_config(page_title="Homes First Survey Dashboard", layout="wide")
 
-# Custom CSS  ─── reduced KPI size here
+# Custom CSS
 st.markdown("""
 <style>
     .main-title {
@@ -15,43 +14,23 @@ st.markdown("""
         font-weight: bold;
         color: #1f77b4;
         text-align: center;
-        margin-bottom: 1.5rem;
+        margin-bottom: 2rem;
     }
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 0.8rem 1rem;              /* was 1.5rem → smaller */
+        padding: 1.5rem;
         border-radius: 10px;
         color: white;
         text-align: center;
-        margin-bottom: 0.5rem;             /* slightly reduced */
+        margin-bottom: 1rem;
     }
     .metric-value {
-        font-size: 1.6rem;                 /* was 2.5rem → smaller */
+        font-size: 2.5rem;
         font-weight: bold;
     }
     .metric-label {
-        font-size: 0.85rem;                /* was 1rem → smaller */
+        font-size: 1rem;
         opacity: 0.9;
-    }
-    .insight-card {
-        background: #f0f7ff;
-        border-left: 4px solid #667eea;
-        padding: 0.9rem;
-        margin: 0.4rem 0;
-        border-radius: 5px;
-        font-size: 0.9rem;
-    }
-    .insight-positive {
-        background: #f0fff4;
-        border-left: 4px solid #48bb78;
-    }
-    .insight-negative {
-        background: #fff5f5;
-        border-left: 4px solid #f56565;
-    }
-    .insight-neutral {
-        background: #fffaf0;
-        border-left: 4px solid #ed8936;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -60,8 +39,11 @@ st.markdown("""
 @st.cache_data
 def load_data():
     df = pd.read_excel('Combined- Cross Analysis.xlsx')
-    df.columns = ['Role', 'Ethnicity', 'Disability', 'Work_Fulfillment',
+    
+    # Rename columns for easier use
+    df.columns = ['Role', 'Ethnicity', 'Disability', 'Work_Fulfillment', 
                   'Recommendation_Score', 'Recognition', 'Growth_Potential']
+    
     return df
 
 df = load_data()
@@ -72,13 +54,16 @@ st.markdown('<div class="main-title">Homes First Employee Survey Dashboard</div>
 # Sidebar filters
 st.sidebar.header("Filters")
 
-roles = ['All'] + sorted(df['Role'].dropna().unique().tolist())
+# Role filter
+roles = ['All'] + sorted(df['Role'].unique().tolist())
 role_filter = st.sidebar.selectbox("Role", roles)
 
-ethnicities = ['All'] + sorted(df['Ethnicity'].dropna().unique().tolist())
+# Ethnicity filter
+ethnicities = ['All'] + sorted(df['Ethnicity'].unique().tolist())
 ethnicity_filter = st.sidebar.selectbox("Ethnicity", ethnicities)
 
-disabilities = ['All'] + sorted(df['Disability'].dropna().unique().tolist())
+# Disability filter
+disabilities = ['All'] + sorted(df['Disability'].unique().tolist())
 disability_filter = st.sidebar.selectbox("Disability", disabilities)
 
 # Apply filters
@@ -90,194 +75,357 @@ if ethnicity_filter != 'All':
 if disability_filter != 'All':
     filtered_df = filtered_df[filtered_df['Disability'] == disability_filter]
 
-# Helper functions (same as before) ...
-def get_score_band(score):
-    if pd.isna(score):
-        return np.nan
-    if score <= 3:
-        return '0–3'
-    elif score <= 6:
-        return '4–6'
-    elif score <= 8:
-        return '7–8'
-    else:
-        return '9–10'
-
-filtered_df['Score_Band'] = filtered_df['Recommendation_Score'].apply(get_score_band)
-
-def categorize_disability(disability_text):
-    if isinstance(disability_text, float) and np.isnan(disability_text):
-        return 'Unknown'
-    text = str(disability_text).lower()
-    if 'do not identify' in text:
-        return 'No Disability'
-    elif 'prefer not to specify' in text:
-        return 'Prefer Not to Specify'
-    else:
-        return 'With Disability'
-
-df['Disability_Category'] = df['Disability'].apply(categorize_disability)
-filtered_df['Disability_Category'] = filtered_df['Disability'].apply(categorize_disability)
-
-# ============= KPIs FIRST (smaller cards) =============
-st.markdown("## 📌 Key Metrics")
-
+# Metric cards
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value">{len(filtered_df)}</div>
-        <div class="metric-label">Total Responses (filtered)</div>
+        <div class="metric-label">Total Responses</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
-    avg_score_f = filtered_df['Recommendation_Score'].mean()
+    avg_score = filtered_df['Recommendation_Score'].mean()
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{avg_score_f:.1f if not np.isnan(avg_score_f) else 0:.1f}</div>
+        <div class="metric-value">{avg_score:.1f}</div>
         <div class="metric-label">Avg Recommendation Score</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
-    low_scores_f = len(filtered_df[filtered_df['Recommendation_Score'] <= 4])
-    high_scores_f = len(filtered_df[filtered_df['Recommendation_Score'] >= 8])
+    low_scores = len(filtered_df[filtered_df['Recommendation_Score'] <= 4])
+    high_scores = len(filtered_df[filtered_df['Recommendation_Score'] >= 8])
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{low_scores_f} / {high_scores_f}</div>
+        <div class="metric-value">{low_scores} / {high_scores}</div>
         <div class="metric-label">Low (≤4) / High (≥8) Scores</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col4:
-    extremely_fulfilling_f = len(
-        filtered_df[
-            filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)
-        ]
-    )
-    pct_extremely_f = (extremely_fulfilling_f / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+    extremely_fulfilling = len(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)])
+    pct_extremely = (extremely_fulfilling / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{pct_extremely_f:.1f}%</div>
-        <div class="metric-label">"Extremely" Fulfilling (filtered)</div>
+        <div class="metric-value">{pct_extremely:.1f}%</div>
+        <div class="metric-label">"Extremely" Fulfilling</div>
     </div>
     """, unsafe_allow_html=True)
 
 st.markdown("---")
 
-# ============= NOW KEY INSIGHTS BELOW KPIs =============
-st.markdown("## 🔍 Key Insights & Patterns")
+# Helper function for score bands
+def get_score_band(score):
+    if score <= 3:
+        return '0-3'
+    elif score <= 6:
+        return '4-6'
+    elif score <= 8:
+        return '7-8'
+    else:
+        return '9-10'
 
-overall_avg = df['Recommendation_Score'].mean()
+# Add score band column
+filtered_df['Score_Band'] = filtered_df['Recommendation_Score'].apply(get_score_band)
 
-disability_scores = df.groupby('Disability_Category')['Recommendation_Score'].agg(['mean', 'count']).round(2)
-disability_scores = disability_scores[disability_scores['count'] >= 5]
+# Helper function to shorten role names
+def shorten_role(role):
+    """Shorten long role names for better display"""
+    role_mapping = {
+        'Director/Assistant Director/Manager/Assistant Manager (HR/Finance/Property/Fundraising/Development)': 'Director/Manager (HR/Finance/Dev)',
+        'Director/Assistant Director/Manager/Assistant Manager/Site Manager (Shelters/Housing)': 'Director/Manager (Shelters)',
+        'Supervisor (Shelters/Housing)': 'Supervisor (Shelters)',
+        'Supervisor (HR/Finance/Property/Fundraising/Development)': 'Supervisor (HR/Finance/Dev)',
+        'ICM - Shelters (includes ICM, HHW, Community Engagement, ICM Health Standards, etc.)': 'ICM - Shelters',
+        'Non-24 Hour Program (including ICM, follow-up supports and PSW)': 'Non-24 Hour Program',
+        'Other (Smaller departments/teams not listed seperately in an effort to maintain confidentiality)': 'Other',
+        'Prefer not to disclose/Other': 'Prefer not to disclose',
+        'CSW - Shelters': 'CSW - Shelters',
+        'Relief': 'Relief'
+    }
+    return role_mapping.get(role, role)
 
-role_scores = df.groupby('Role')['Recommendation_Score'].agg(['mean', 'count']).round(2)
-role_scores = role_scores[role_scores['count'] >= 5]
-lowest_role = role_scores['mean'].idxmin() if len(role_scores) > 0 else None
-highest_role = role_scores['mean'].idxmax() if len(role_scores) > 0 else None
+# Helper function to shorten answer text
+def shorten_text(text, max_length=60):
+    """Shorten long text for legends"""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length-3] + '...'
 
-extremely_fulfilling = df[df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]
-avg_score_extremely = extremely_fulfilling['Recommendation_Score'].mean()
-not_extremely = df[~df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]
-avg_score_not_extremely = not_extremely['Recommendation_Score'].mean()
-
-recognized = df[df['Recognition'].str.contains('Yes, I do feel recognized', case=False, na=False)]
-avg_recognized = recognized['Recommendation_Score'].mean()
-not_recognized = df[df['Recognition'].str.contains("don't feel recognized and would prefer", case=False, na=False)]
-avg_not_recognized = not_recognized['Recommendation_Score'].mean() if len(not_recognized) > 0 else 0
-
-col_ins1, col_ins2 = st.columns(2)
-
-with col_ins1:
-    st.markdown("### 📊 Overall Patterns")
-
-    diff_fulfillment = avg_score_extremely - avg_score_not_extremely
-    if not np.isnan(diff_fulfillment) and diff_fulfillment > 2:
-        st.markdown(f"""
-        <div class="insight-card insight-positive">
-            <strong>✅ Strong Positive Link:</strong> Employees who find work "extremely fulfilling"
-            score <strong>{diff_fulfillment:.1f} points higher</strong>
-            ({avg_score_extremely:.1f} vs {avg_score_not_extremely:.1f}) on recommendation.
-        </div>
-        """, unsafe_allow_html=True)
-
-    if avg_not_recognized > 0:
-        diff_recognition = avg_recognized - avg_not_recognized
-        if abs(diff_recognition) > 1.5:
-            insight_class = "insight-positive" if diff_recognition > 0 else "insight-negative"
-            icon = "✅" if diff_recognition > 0 else "⚠️"
-            direction = "higher" if diff_recognition > 0 else "lower"
-            st.markdown(f"""
-            <div class="insight-card {insight_class}">
-                <strong>{icon} Recognition Impact:</strong>
-                Employees who feel recognized score <strong>{abs(diff_recognition):.1f} points {direction}</strong>
-                ({avg_recognized:.1f} vs {avg_not_recognized:.1f}).
-            </div>
-            """, unsafe_allow_html=True)
-
-    if lowest_role is not None:
-        st.markdown(f"""
-        <div class="insight-card insight-negative">
-            <strong>⚠️ Lowest Scoring Role:</strong> {lowest_role}
-            (avg: {role_scores.loc[lowest_role, 'mean']:.1f}, n={int(role_scores.loc[lowest_role, 'count'])})
-        </div>
-        """, unsafe_allow_html=True)
-
-    if highest_role is not None:
-        st.markdown(f"""
-        <div class="insight-card insight-positive">
-            <strong>✅ Highest Scoring Role:</strong> {highest_role}
-            (avg: {role_scores.loc[highest_role, 'mean']:.1f}, n={int(role_scores.loc[highest_role, 'count'])})
-        </div>
-        """, unsafe_allow_html=True)
-
-with col_ins2:
-    st.markdown("### 👥 Demographic Patterns")
-
-    if {'With Disability', 'No Disability'} <= set(disability_scores.index):
-        diff_disability = (
-            disability_scores.loc['No Disability', 'mean']
-            - disability_scores.loc['With Disability', 'mean']
+# Helper function for stacked bar charts
+def create_stacked_bar(df, value_col, title):
+    # Get top 8 roles by count (reduced from 10 for better readability)
+    role_counts = df['Role'].value_counts().head(8)
+    top_roles = role_counts.index.tolist()
+    df_filtered = df[df['Role'].isin(top_roles)]
+    
+    # Shorten role names
+    df_filtered['Role_Short'] = df_filtered['Role'].apply(shorten_role)
+    
+    # Calculate percentages
+    cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[value_col], normalize='index') * 100
+    
+    # Sort by original role order
+    role_short_order = [shorten_role(r) for r in top_roles]
+    cross_tab = cross_tab.reindex(role_short_order)
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Define a color palette
+    colors = px.colors.qualitative.Set3
+    
+    for idx, col in enumerate(cross_tab.columns):
+        # Only show percentage if > 5% to avoid clutter
+        text_values = []
+        for v in cross_tab[col]:
+            if v > 5:
+                text_values.append(f'{v:.1f}%')
+            else:
+                text_values.append('')
+        
+        fig.add_trace(go.Bar(
+            name=shorten_text(col, 50),
+            y=cross_tab.index,
+            x=cross_tab[col],
+            orientation='h',
+            text=text_values,
+            textposition='inside',
+            marker_color=colors[idx % len(colors)]
+        ))
+    
+    # Calculate dynamic height - more space per role
+    n_roles = len(cross_tab)
+    chart_height = max(500, 60 * n_roles + 200)
+    
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=16)),
+        barmode='stack',
+        xaxis_title='Percentage (%)',
+        yaxis_title='',
+        height=chart_height,
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            font=dict(size=11)
+        ),
+        margin=dict(l=200, r=250, t=80, b=80),  # More margins for text
+        yaxis=dict(
+            tickfont=dict(size=12),
+            automargin=True
+        ),
+        xaxis=dict(
+            tickfont=dict(size=11)
         )
-        if abs(diff_disability) > 1:
-            insight_class = "insight-negative" if diff_disability > 0 else "insight-positive"
-            icon = "⚠️" if diff_disability > 0 else "✅"
-            st.markdown(f"""
-            <div class="insight-card {insight_class}">
-                <strong>{icon} Disability Status:</strong>
-                Employees with disabilities score
-                <strong>{abs(diff_disability):.1f} points lower</strong>
-                ({disability_scores.loc['With Disability', 'mean']:.1f} vs
-                {disability_scores.loc['No Disability', 'mean']:.1f}).
-            </div>
-            """, unsafe_allow_html=True)
+    )
+    
+    return fig
 
-    ethnicity_scores = df.groupby('Ethnicity')['Recommendation_Score'].agg(['mean', 'count']).round(2)
-    ethnicity_scores = ethnicity_scores[ethnicity_scores['count'] >= 5]
-    if len(ethnicity_scores) > 0:
-        top_ethnicity = ethnicity_scores['mean'].idxmax()
-        top_ethnicity_short = top_ethnicity.split('(')[0].strip() if '(' in top_ethnicity else top_ethnicity[:40]
-        st.markdown(f"""
-        <div class="insight-card insight-positive">
-            <strong>✅ Highest Scoring Ethnicity:</strong> {top_ethnicity_short}
-            (avg: {ethnicity_scores.loc[top_ethnicity, 'mean']:.1f}, n={int(ethnicity_scores.loc[top_ethnicity, 'count'])})
-        </div>
-        """, unsafe_allow_html=True)
+# SECTION A: RECOMMENDATION SCORE
+st.header("How likely are you to recommend Homes First as a good place to work?")
 
-    low_scores_all = df[df['Recommendation_Score'] <= 4]
-    if len(low_scores_all) > 0:
-        low_score_roles = low_scores_all['Role'].value_counts().head(1)
-        st.markdown(f"""
-        <div class="insight-card insight-neutral">
-            <strong>📌 Low Score Concentration:</strong> {low_score_roles.index[0]} has
-            {low_score_roles.values[0]} responses with scores ≤4.
-        </div>
-        """, unsafe_allow_html=True)
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    # 1. Overall score distribution (0-10)
+    score_dist = filtered_df['Recommendation_Score'].value_counts().sort_index().reset_index()
+    score_dist.columns = ['Score', 'Count']
+    
+    # Ensure all scores 0-10 are present
+    all_scores = pd.DataFrame({'Score': range(11)})
+    score_dist = all_scores.merge(score_dist, on='Score', how='left').fillna(0)
+    score_dist['Count'] = score_dist['Count'].astype(int)
+    
+    fig1 = px.bar(score_dist, x='Count', y='Score', orientation='h',
+                  title='Recommendation Score Distribution (0-10)',
+                  labels={'Count': 'Count', 'Score': 'Score'},
+                  color='Count',
+                  color_continuous_scale='Blues')
+    fig1.update_layout(
+        height=500, 
+        yaxis=dict(dtick=1, tickfont=dict(size=12)),
+        xaxis=dict(tickfont=dict(size=11)),
+        showlegend=False
+    )
+    st.plotly_chart(fig1, use_container_width=True)
+
+with col2:
+    # 2. Donut chart - score bands
+    band_counts = filtered_df['Score_Band'].value_counts()
+    band_order = ['0-3', '4-6', '7-8', '9-10']
+    band_counts = band_counts.reindex(band_order, fill_value=0)
+    
+    fig2 = go.Figure(data=[go.Pie(
+        labels=band_counts.index,
+        values=band_counts.values,
+        hole=0.4,
+        textinfo='label+percent',
+        textfont=dict(size=14),
+        marker=dict(colors=['#ef5350', '#ffa726', '#66bb6a', '#42a5f5'])
+    )])
+    fig2.update_layout(
+        title=dict(text='Recommendation Score Bands', font=dict(size=16)),
+        height=500,
+        showlegend=True,
+        legend=dict(font=dict(size=12))
+    )
+    st.plotly_chart(fig2, use_container_width=True)
+
+# 3. 100% stacked horizontal bar - score bands by Role
+st.subheader("Recommendation Score Bands by Role (Top 8 Roles)")
+fig3 = create_stacked_bar(filtered_df, 'Score_Band', 'Score Bands by Role')
+st.plotly_chart(fig3, use_container_width=True)
 
 st.markdown("---")
 
-# From here you can keep the rest of your sections (question breakdown, tabs, etc.) unchanged.
+# SECTION B: WORK FULFILLMENT
+st.header("How fulfilling and rewarding do you find your work?")
+fig4 = create_stacked_bar(filtered_df, 'Work_Fulfillment', 'Work Fulfillment by Role (Top 8 Roles)')
+st.plotly_chart(fig4, use_container_width=True)
+
+st.markdown("---")
+
+# SECTION C: RECOGNITION
+st.header("Do you feel you get acknowledged and recognized for your contribution at work?")
+fig5 = create_stacked_bar(filtered_df, 'Recognition', 'Recognition by Role (Top 8 Roles)')
+st.plotly_chart(fig5, use_container_width=True)
+
+st.markdown("---")
+
+# SECTION D: GROWTH POTENTIAL
+st.header("Do you feel there is potential for growth at Homes First?")
+fig6 = create_stacked_bar(filtered_df, 'Growth_Potential', 'Growth Potential by Role (Top 8 Roles)')
+st.plotly_chart(fig6, use_container_width=True)
+
+st.markdown("---")
+
+# SECTION E: CONTEXT CHARTS - IMPROVED WITH TABS
+st.header("Context: Ethnicity and Disability")
+
+# Create tabs for better organization
+tab1, tab2 = st.tabs(["🌍 Ethnicity Breakdown", "♿ Disability Breakdown"])
+
+with tab1:
+    # Ethnicity counts
+    ethnicity_counts = filtered_df['Ethnicity'].value_counts().sort_values(ascending=False).head(15)
+    
+    # Shorten ethnicity labels for display
+    ethnicity_display = {}
+    for e in ethnicity_counts.index:
+        short = e
+        if len(e) > 60:
+            # Shorten by removing parenthetical details
+            if '(' in e:
+                short = e.split('(')[0].strip()
+            else:
+                short = e[:57] + '...'
+        ethnicity_display[e] = short
+    
+    ethnicity_labels = [ethnicity_display[e] for e in ethnicity_counts.index]
+    
+    fig7 = go.Figure(go.Bar(
+        y=ethnicity_labels,
+        x=ethnicity_counts.values,
+        orientation='h',
+        marker=dict(
+            color=ethnicity_counts.values,
+            colorscale='Viridis',
+            showscale=False,
+            line=dict(color='white', width=1)
+        ),
+        text=ethnicity_counts.values,
+        textposition='outside',
+        hovertext=[f"{e}<br>Count: {c}" for e, c in zip(ethnicity_counts.index, ethnicity_counts.values)],
+        hoverinfo='text'
+    ))
+    
+    fig7.update_layout(
+        title=dict(text=f'Ethnicity Distribution (Showing Top 15 of {len(filtered_df)} Total Responses)', font=dict(size=16)),
+        xaxis_title='Number of Responses',
+        yaxis_title='',
+        height=max(500, 40 * len(ethnicity_counts) + 150),
+        margin=dict(l=250, r=80, t=80, b=50),
+        yaxis=dict(tickfont=dict(size=11)),
+        xaxis=dict(tickfont=dict(size=11)),
+        plot_bgcolor='rgba(240,242,246,0.5)',
+        paper_bgcolor='white'
+    )
+    st.plotly_chart(fig7, use_container_width=True)
+    
+    # Show summary statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Unique Ethnicities", len(filtered_df['Ethnicity'].unique()))
+    with col2:
+        st.metric("Most Common", ethnicity_display[ethnicity_counts.index[0]])
+    with col3:
+        st.metric("Top Category Count", int(ethnicity_counts.values[0]))
+
+with tab2:
+    # Disability counts
+    disability_counts = filtered_df['Disability'].value_counts().sort_values(ascending=False).head(15)
+    
+    # Shorten disability labels
+    disability_display = {}
+    for d in disability_counts.index:
+        short = d
+        if len(d) > 70:
+            short = d[:67] + '...'
+        disability_display[d] = short
+    
+    disability_labels = [disability_display[d] for d in disability_counts.index]
+    
+    fig8 = go.Figure(go.Bar(
+        y=disability_labels,
+        x=disability_counts.values,
+        orientation='h',
+        marker=dict(
+            color=disability_counts.values,
+            colorscale='Teal',
+            showscale=False,
+            line=dict(color='white', width=1)
+        ),
+        text=disability_counts.values,
+        textposition='outside',
+        hovertext=[f"{d}<br>Count: {c}" for d, c in zip(disability_counts.index, disability_counts.values)],
+        hoverinfo='text'
+    ))
+    
+    fig8.update_layout(
+        title=dict(text=f'Disability Status Distribution (Showing Top 15 of {len(filtered_df)} Total Responses)', font=dict(size=16)),
+        xaxis_title='Number of Responses',
+        yaxis_title='',
+        height=max(500, 40 * len(disability_counts) + 150),
+        margin=dict(l=300, r=80, t=80, b=50),
+        yaxis=dict(tickfont=dict(size=11)),
+        xaxis=dict(tickfont=dict(size=11)),
+        plot_bgcolor='rgba(240,242,246,0.5)',
+        paper_bgcolor='white'
+    )
+    st.plotly_chart(fig8, use_container_width=True)
+    
+    # Show summary statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Unique Categories", len(filtered_df['Disability'].unique()))
+    with col2:
+        no_disability = len(filtered_df[filtered_df['Disability'].str.contains('do not identify', case=False, na=False)])
+        st.metric("No Disability", no_disability)
+    with col3:
+        with_disability = len(filtered_df) - no_disability
+        st.metric("With Disability", with_disability)
+
+# Add footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; padding: 1rem;'>
+    <p style='font-size: 0.9rem;'>📊 Homes First Employee Survey Dashboard | Use filters in the sidebar to explore specific segments</p>
+</div>
+""", unsafe_allow_html=True)
