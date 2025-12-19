@@ -241,16 +241,16 @@ with tab3:
         heatmap_data.append(row)
         role_labels.append(role)
     
-    # Question labels
+    # Question labels - compact and wrapped
     question_labels = [
-        'Work: Extremely<br>Fulfilling',
-        'Work: Mixed<br>Fulfillment',
-        'Work: Somewhat<br>Fulfilling',
-        'Recognition:<br>Yes, Feel Recognized',
-        'Recognition:<br>Somewhat',
-        'Growth: Yes,<br>Potential to Grow',
-        'Growth: Some<br>Potential',
-        'Avg Recommendation<br>Score (0-10)'
+        'Extremely<br>Fulfilling<br>Work',
+        'Mixed<br>Fulfillment<br>Work',
+        'Somewhat<br>Fulfilling<br>Work',
+        'Yes, Feel<br>Recognized',
+        'Somewhat<br>Recognized',
+        'Yes, Growth<br>Potential',
+        'Some Growth<br>Potential',
+        'Avg Score<br>(0-10)'
     ]
     
     # Create heatmap
@@ -292,9 +292,9 @@ with tab3:
         title="Complete Cross-Analysis: How Each Role Responds to Each Question",
         xaxis_title='Survey Questions',
         yaxis_title='Role / Department',
-        height=600,
-        margin=dict(l=200, r=50, t=100, b=150),
-        xaxis=dict(tickangle=-35, tickfont=dict(size=10)),
+        height=650,
+        margin=dict(l=200, r=50, t=100, b=100),
+        xaxis=dict(tickangle=0, tickfont=dict(size=10)),
         yaxis=dict(tickfont=dict(size=11))
     )
     
@@ -329,8 +329,9 @@ with tab3:
     st.markdown("- Roles with low recognition should be prioritized for acknowledgment initiatives")
 
 # ------------------- STACKED BARS -------------------
-st.markdown("## 🏗 Stacked Response Distribution by Role")
-def create_stacked_bar(df, value_col, title):
+st.markdown("## 🏗 Response Distribution by Role")
+
+def create_stacked_bar(df, value_col, title, orientation='h'):
     role_counts = df['Role'].value_counts().head(8)
     top_roles = role_counts.index.tolist()
     df_filtered_local = df[df['Role'].isin(top_roles)]
@@ -338,10 +339,10 @@ def create_stacked_bar(df, value_col, title):
     cross_tab = pd.crosstab(df_filtered_local['Role_Short'], df_filtered_local[value_col], normalize='index')*100
     role_short_order = [shorten_role(r) for r in top_roles]
     cross_tab = cross_tab.reindex(role_short_order)
-    max_label_len = max([len(r) for r in cross_tab.index])
-    orientation = 'h' if max_label_len > 20 else 'v'
+    
     fig = go.Figure()
     colors = px.colors.qualitative.Set3
+    
     for idx, col in enumerate(cross_tab.columns):
         if orientation == 'h':
             x_vals, y_vals = cross_tab[col], cross_tab.index
@@ -357,22 +358,53 @@ def create_stacked_bar(df, value_col, title):
             orientation=orientation,
             text=text_values,
             textposition=textposition,
+            textfont=dict(color='white', size=11),
             marker_color=colors[idx % len(colors)]
         ))
+    
     fig.update_layout(
         barmode='stack',
-        title=title,
-        xaxis=dict(title='Percentage of Responses', range=[0,100] if orientation=='h' else None),
-        yaxis=dict(title='Role' if orientation=='h' else None),
+        title=dict(text=title, font=dict(size=16, color='#2c3e50')),
+        xaxis=dict(
+            title='Percentage of Responses' if orientation=='h' else 'Role',
+            range=[0,100] if orientation=='h' else None,
+            showline=True,
+            linewidth=2,
+            linecolor='#34495e',
+            showgrid=True,
+            gridcolor='#ecf0f1',
+            zeroline=True
+        ),
+        yaxis=dict(
+            title='Role' if orientation=='h' else 'Percentage of Responses',
+            showline=True,
+            linewidth=2,
+            linecolor='#34495e',
+            showgrid=True,
+            gridcolor='#ecf0f1'
+        ),
         height=max(500, 60*len(cross_tab)+150),
         margin=dict(l=200, r=50, t=100, b=150),
-        legend=dict(title='Response', traceorder='normal')
+        legend=dict(
+            title='Response',
+            traceorder='normal',
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='#34495e',
+            borderwidth=1
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='#f8f9fa'
     )
+    
+    # Add frame around the plot
+    fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+    fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+    
     return fig
 
-st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', 'Work Fulfillment Distribution by Role'), use_container_width=True)
-st.plotly_chart(create_stacked_bar(df, 'Recognition', 'Recognition Distribution by Role'), use_container_width=True)
-st.plotly_chart(create_stacked_bar(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
+st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', '💼 Work Fulfillment Distribution by Role', orientation='h'), use_container_width=True)
+st.plotly_chart(create_stacked_bar(df, 'Recognition', '🌟 Recognition Distribution by Role', orientation='h'), use_container_width=True)
+st.plotly_chart(create_stacked_bar(df, 'Growth_Potential', '📈 Growth Potential Distribution by Role', orientation='h'), use_container_width=True)
 
 # 🔹 Stacked Bar Insights
 role_scores = df_insights.groupby('Role')['Recommendation_Score'].mean().sort_values()
