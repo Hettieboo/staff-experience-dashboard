@@ -24,20 +24,19 @@ st.markdown("""
         color: white;
         text-align: center;
         margin-bottom: 1rem;
-        height: 135px;
+        height: 120px;
         display: flex;
         flex-direction: column;
         justify-content: center;
     }
     .metric-value {
-        font-size: 1.9rem;
+        font-size: 2rem;
         font-weight: bold;
         margin: 5px 0;
     }
     .metric-label {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         opacity: 0.9;
-        line-height: 1.3;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -233,18 +232,10 @@ with tab1:
             textposition='inside', textfont=dict(color='white', size=11)))
         
         fig.update_layout(barmode='relative', title=dict(text=title, font=dict(size=16, color='#2c3e50')),
-            xaxis=dict(title='← Negative    |    Positive →', range=[-100, 100],
-                tickvals=[-100, -75, -50, -25, 0, 25, 50, 75, 100],
-                ticktext=['100%', '75%', '50%', '25%', '0', '25%', '50%', '75%', '100%'],
-                showline=True, linewidth=2, linecolor='#34495e', showgrid=True, gridcolor='#ecf0f1',
-                zeroline=True, zerolinewidth=3, zerolinecolor='#34495e'),
-            yaxis=dict(title='Role', showline=True, linewidth=2, linecolor='#34495e', showgrid=False),
-            height=500, margin=dict(l=200, r=50, t=80, b=80),
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
+            xaxis=dict(title='← Negative    |    Positive →', range=[-100, 100]), height=500,
+            margin=dict(l=200, r=50, t=80, b=80), legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
             plot_bgcolor='white', paper_bgcolor='#f8f9fa')
         
-        fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
-        fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
         return fig
     
     st.subheader("💼 Work Fulfillment by Role")
@@ -263,8 +254,8 @@ with tab1:
 with tab2:
     st.markdown("### Analysis by Ethnicity")
     
-    top_ethnicities = df['Ethnicity'].value_counts().head(8).index.tolist()
-    df_eth = df[df['Ethnicity'].isin(top_ethnicities)].copy()
+    top_ethnicities = filtered_df['Ethnicity'].value_counts().head(8).index.tolist()
+    df_eth = filtered_df[filtered_df['Ethnicity'].isin(top_ethnicities)].copy()
     df_eth['Ethnicity_Short'] = df_eth['Ethnicity'].apply(shorten_ethnicity)
     
     def create_diverging_bar_eth(df, question_col, title, positive_keywords, neutral_keywords, negative_keywords):
@@ -285,32 +276,19 @@ with tab2:
         
         df_chart = pd.DataFrame(eth_data)
         fig = go.Figure()
-        
         fig.add_trace(go.Bar(y=df_chart['Ethnicity'], x=-df_chart['Negative'], name='Negative', orientation='h',
-            marker=dict(color='#e74c3c'), text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Negative']],
+            marker=dict(color='#e74c3c'), text=[f'{val:.0f}%' if val>5 else '' for val in df_chart['Negative']],
             textposition='inside', textfont=dict(color='white', size=11)))
-        
         fig.add_trace(go.Bar(y=df_chart['Ethnicity'], x=df_chart['Neutral'], name='Neutral', orientation='h',
-            marker=dict(color='#f39c12'), text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Neutral']],
+            marker=dict(color='#f39c12'), text=[f'{val:.0f}%' if val>5 else '' for val in df_chart['Neutral']],
             textposition='inside', textfont=dict(color='white', size=11)))
-        
         fig.add_trace(go.Bar(y=df_chart['Ethnicity'], x=df_chart['Positive'], name='Positive', orientation='h',
-            marker=dict(color='#27ae60'), text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Positive']],
+            marker=dict(color='#27ae60'), text=[f'{val:.0f}%' if val>5 else '' for val in df_chart['Positive']],
             textposition='inside', textfont=dict(color='white', size=11)))
         
         fig.update_layout(barmode='relative', title=dict(text=title, font=dict(size=16, color='#2c3e50')),
-            xaxis=dict(title='← Negative    |    Positive →', range=[-100, 100],
-                tickvals=[-100, -75, -50, -25, 0, 25, 50, 75, 100],
-                ticktext=['100%', '75%', '50%', '25%', '0', '25%', '50%', '75%', '100%'],
-                showline=True, linewidth=2, linecolor='#34495e', showgrid=True, gridcolor='#ecf0f1',
-                zeroline=True, zerolinewidth=3, zerolinecolor='#34495e'),
-            yaxis=dict(title='Ethnicity', showline=True, linewidth=2, linecolor='#34495e', showgrid=False),
-            height=500, margin=dict(l=200, r=50, t=80, b=80),
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
-            plot_bgcolor='white', paper_bgcolor='#f8f9fa')
-        
-        fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
-        fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+            xaxis=dict(title='← Negative    |    Positive →', range=[-100,100]), height=500,
+            margin=dict(l=200,r=50,t=80,b=80), legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5))
         return fig
     
     st.subheader("💼 Work Fulfillment by Ethnicity")
@@ -329,7 +307,7 @@ with tab2:
 with tab3:
     st.markdown("### Analysis by Disability Status")
     
-    df_dis = df.copy()
+    df_dis = filtered_df.copy()
     df_dis['Disability_Short'] = df_dis['Disability_Category']
     
     def create_diverging_bar_dis(df, question_col, title, positive_keywords, neutral_keywords, negative_keywords):
@@ -350,32 +328,19 @@ with tab3:
         
         df_chart = pd.DataFrame(dis_data)
         fig = go.Figure()
-        
         fig.add_trace(go.Bar(y=df_chart['Disability'], x=-df_chart['Negative'], name='Negative', orientation='h',
-            marker=dict(color='#e74c3c'), text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Negative']],
+            marker=dict(color='#e74c3c'), text=[f'{val:.0f}%' if val>5 else '' for val in df_chart['Negative']],
             textposition='inside', textfont=dict(color='white', size=11)))
-        
         fig.add_trace(go.Bar(y=df_chart['Disability'], x=df_chart['Neutral'], name='Neutral', orientation='h',
-            marker=dict(color='#f39c12'), text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Neutral']],
+            marker=dict(color='#f39c12'), text=[f'{val:.0f}%' if val>5 else '' for val in df_chart['Neutral']],
             textposition='inside', textfont=dict(color='white', size=11)))
-        
         fig.add_trace(go.Bar(y=df_chart['Disability'], x=df_chart['Positive'], name='Positive', orientation='h',
-            marker=dict(color='#27ae60'), text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Positive']],
+            marker=dict(color='#27ae60'), text=[f'{val:.0f}%' if val>5 else '' for val in df_chart['Positive']],
             textposition='inside', textfont=dict(color='white', size=11)))
         
         fig.update_layout(barmode='relative', title=dict(text=title, font=dict(size=16, color='#2c3e50')),
-            xaxis=dict(title='← Negative    |    Positive →', range=[-100, 100],
-                tickvals=[-100, -75, -50, -25, 0, 25, 50, 75, 100],
-                ticktext=['100%', '75%', '50%', '25%', '0', '25%', '50%', '75%', '100%'],
-                showline=True, linewidth=2, linecolor='#34495e', showgrid=True, gridcolor='#ecf0f1',
-                zeroline=True, zerolinewidth=3, zerolinecolor='#34495e'),
-            yaxis=dict(title='Disability Status', showline=True, linewidth=2, linecolor='#34495e', showgrid=False),
-            height=400, margin=dict(l=200, r=50, t=80, b=80),
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5),
-            plot_bgcolor='white', paper_bgcolor='#f8f9fa')
-        
-        fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
-        fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+            xaxis=dict(title='← Negative    |    Positive →', range=[-100,100]), height=400,
+            margin=dict(l=200,r=50,t=80,b=80), legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5))
         return fig
     
     st.subheader("💼 Work Fulfillment by Disability Status")
@@ -392,39 +357,7 @@ with tab3:
 
 # =================== TAB 4: HEATMAPS ===================
 with tab4:
-    st.markdown("### Sentiment Heatmaps")
-    
-    def create_sentiment_heatmap(df, question_col, title):
-        top_roles = df['Role'].value_counts().head(8).index.tolist()
-        df_filtered_local = df[df['Role'].isin(top_roles)]
-        df_filtered_local['Role_Short'] = df_filtered_local['Role'].apply(shorten_role)
-        cross_tab = pd.crosstab(df_filtered_local['Role_Short'], df_filtered_local[question_col], normalize='index')*100
-        positive_cols = [col for col in cross_tab.columns if 'extremely' in str(col).lower() or 'yes' in str(col).lower()]
-        if positive_cols:
-            cross_tab = cross_tab.sort_values(by=positive_cols[0], ascending=True)
-        fig = go.Figure(data=go.Heatmap(
-            z=cross_tab.values,
-            x=[col[:50]+'...' if len(str(col))>50 else str(col) for col in cross_tab.columns],
-            y=cross_tab.index,
-            colorscale='RdYlGn',
-            text=[[f'{val:.1f}%' for val in row] for row in cross_tab.values],
-            texttemplate='%{text}',
-            textfont={"size":10},
-            colorbar=dict(title="% of<br>Responses")
-        ))
-        fig.update_layout(
-            title=title,
-            xaxis_title='',
-            yaxis_title='Role',
-            height=max(500,60*len(cross_tab)+150),
-            margin=dict(l=200,r=50,t=100,b=150),
-            xaxis=dict(tickangle=-45,tickfont=dict(size=10))
-        )
-        return fig
-
-    st.subheader("Work Fulfillment by Role")
-    st.plotly_chart(create_sentiment_heatmap(df, 'Work_Fulfillment', 'Work Fulfillment Distribution by Role'), use_container_width=True)
-    st.subheader("Recognition by Role")
-    st.plotly_chart(create_sentiment_heatmap(df, 'Recognition', 'Recognition Sentiment by Role'), use_container_width=True)
-    st.subheader("Growth Potential by Role")
-    st.plotly_chart(create_sentiment_heatmap(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
+    st.markdown("### Correlation Heatmap")
+    corr = filtered_df[['Recommendation_Score']].corr()
+    fig = px.imshow(corr, text_auto=True, color_continuous_scale='RdYlGn')
+    st.plotly_chart(fig, use_container_width=True)
