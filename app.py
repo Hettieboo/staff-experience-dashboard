@@ -70,13 +70,10 @@ st.markdown('<div class="main-title">Homes First Employee Survey Dashboard</div>
 
 # ================= SIDEBAR FILTERS =================
 st.sidebar.header("Filters")
-
 roles = ['All'] + sorted(df['Role'].unique().tolist())
 role_filter = st.sidebar.selectbox("Role", roles)
-
 ethnicities = ['All'] + sorted(df['Ethnicity'].unique().tolist())
 ethnicity_filter = st.sidebar.selectbox("Ethnicity", ethnicities)
-
 disabilities = ['All'] + sorted(df['Disability'].unique().tolist())
 disability_filter = st.sidebar.selectbox("Disability", disabilities)
 
@@ -127,9 +124,7 @@ filtered_df['Score_Band'] = filtered_df['Recommendation_Score'].apply(get_score_
 
 # ================= KPI CARDS =================
 st.markdown("## 📊 Key Performance Indicators (KPIs)")
-
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
     st.markdown(f"""
     <div class="metric-card" style="padding:0.75rem;">
@@ -137,7 +132,6 @@ with col1:
         <div class="metric-label" style="font-size:0.85rem;">Total Responses</div>
     </div>
     """, unsafe_allow_html=True)
-
 with col2:
     avg_score = filtered_df['Recommendation_Score'].mean()
     st.markdown(f"""
@@ -146,7 +140,6 @@ with col2:
         <div class="metric-label" style="font-size:0.85rem;">Avg Recommendation Score</div>
     </div>
     """, unsafe_allow_html=True)
-
 with col3:
     low_scores = len(filtered_df[filtered_df['Recommendation_Score'] <= 4])
     high_scores = len(filtered_df[filtered_df['Recommendation_Score'] >= 8])
@@ -156,7 +149,6 @@ with col3:
         <div class="metric-label" style="font-size:0.85rem;">Low (≤4) / High (≥8) Scores</div>
     </div>
     """, unsafe_allow_html=True)
-
 with col4:
     extremely_fulfilling = len(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)])
     pct_extremely = (extremely_fulfilling / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
@@ -171,15 +163,12 @@ st.markdown("---")
 
 # ================= KEY INSIGHTS =================
 st.markdown("## 🔍 Key Insights & Patterns")
-
 overall_avg = df['Recommendation_Score'].mean()
 role_scores = df.groupby('Role')['Recommendation_Score'].agg(['mean', 'count']).round(2)
 role_scores = role_scores[role_scores['count'] >= 5]
 lowest_role = role_scores['mean'].idxmin()
 highest_role = role_scores['mean'].idxmax()
-
 col1, col2 = st.columns(2)
-
 with col1:
     st.markdown(f"""
     <div class="insight-card insight-negative">
@@ -189,18 +178,13 @@ with col1:
         <strong>✅ Highest Scoring Role:</strong> {highest_role} (avg: {role_scores.loc[highest_role,'mean']:.1f})
     </div>
     """ , unsafe_allow_html=True)
-
 with col2:
     st.markdown("### Demographics insights placeholder")
-    
 st.markdown("---")
 
 # ================= CROSS-ANALYSIS / ROLE COMPARISONS =================
 st.markdown("## 📈 Cross-Analysis: Demographics vs. Employee Sentiment")
 tab1, tab2, tab3 = st.tabs(["🎯 Score Comparisons", "🔥 Sentiment Heatmap", "🔗 Correlation Analysis"])
-
-# ----- TAB 1 (Score Comparisons) -----
-# Keep original code for disability, ethnicity, role comparisons (unchanged)
 
 # ----- TAB 2 (Sentiment Heatmap) -----
 with tab2:
@@ -210,16 +194,21 @@ with tab2:
         top_roles = df['Role'].value_counts().head(8).index.tolist()
         df_filtered = df[df['Role'].isin(top_roles)]
         df_filtered['Role_Short'] = df_filtered['Role'].apply(shorten_role)
-        cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[question_col], normalize='index') * 100
-        positive_cols = [col for col in cross_tab.columns if 'extremely' in col.lower() or 'yes' in col.lower()]
+        
+        # Row-normalized percentages
+        cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[question_col], normalize='index')*100
+        
+        # Sort by "positive" response if exists
+        positive_cols = [col for col in cross_tab.columns if 'extremely' in str(col).lower() or 'yes' in str(col).lower()]
         if positive_cols:
             cross_tab = cross_tab.sort_values(by=positive_cols[0], ascending=True)
+        
         fig = go.Figure(data=go.Heatmap(
             z=cross_tab.values,
-            x=[col[:50]+'...' if len(col)>50 else col for col in cross_tab.columns],
+            x=[col[:50]+'...' if len(str(col))>50 else str(col) for col in cross_tab.columns],
             y=cross_tab.index,
             colorscale='RdYlGn',
-            text=[[f'{val:.0f}%' for val in row] for row in cross_tab.values],
+            text=[[f'{val:.1f}%' for val in row] for row in cross_tab.values],
             texttemplate='%{text}',
             textfont={"size":10},
             colorbar=dict(title="% of<br>Responses")
@@ -233,7 +222,7 @@ with tab2:
             xaxis=dict(tickangle=-45,tickfont=dict(size=10))
         )
         return fig
-
+    
     st.subheader("Work Fulfillment by Role")
     st.plotly_chart(create_sentiment_heatmap(df, 'Work_Fulfillment', 'Work Fulfillment Distribution by Role'), use_container_width=True)
     st.subheader("Recognition by Role")
@@ -241,44 +230,84 @@ with tab2:
     st.subheader("Growth Potential by Role")
     st.plotly_chart(create_sentiment_heatmap(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
 
-# ----- TAB 3 (Correlation Analysis) -----
-# Keep original correlation analysis code (unchanged)
-
-# ================= STACKED BAR CHARTS =================
+# ----- STACKED BAR CHARTS -----
 st.markdown("## 🏗 Stacked Response Distribution by Role")
-
 def create_stacked_bar(df, value_col, title):
     role_counts = df['Role'].value_counts().head(8)
     top_roles = role_counts.index.tolist()
     df_filtered = df[df['Role'].isin(top_roles)]
     df_filtered['Role_Short'] = df_filtered['Role'].apply(shorten_role)
+    
     cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[value_col], normalize='index')*100
     role_short_order = [shorten_role(r) for r in top_roles]
     cross_tab = cross_tab.reindex(role_short_order)
+    
+    max_label_len = max([len(r) for r in cross_tab.index])
+    orientation = 'h' if max_label_len > 20 else 'v'
+    
     fig = go.Figure()
     colors = px.colors.qualitative.Set3
-    for idx,col in enumerate(cross_tab.columns):
+    
+    for idx, col in enumerate(cross_tab.columns):
+        if orientation == 'h':
+            x_vals, y_vals = cross_tab[col], cross_tab.index
+            textposition = 'inside'
+        else:
+            x_vals, y_vals = cross_tab.index, cross_tab[col]
+            textposition = 'auto'
+        
         text_values = [f'{v:.1f}%' if v>5 else '' for v in cross_tab[col]]
+        
         fig.add_trace(go.Bar(
-            y=cross_tab.index,
-            x=cross_tab[col],
-            name=shorten_text(str(col),30),
-            orientation='h',
+            x=x_vals if orientation=='h' else y_vals,
+            y=y_vals if orientation=='h' else x_vals,
+            name=shorten_text(str(col), 30),
+            orientation=orientation,
             text=text_values,
-            textposition='inside',
-            marker_color=colors[idx%len(colors)]
+            textposition=textposition,
+            marker_color=colors[idx % len(colors)]
         ))
+    
     fig.update_layout(
         barmode='stack',
         title=title,
-        xaxis=dict(title='Percentage of Responses', range=[0,100]),
-        yaxis=dict(title='Role'),
-        height=max(500,60*len(cross_tab)+150),
-        margin=dict(l=200,r=50,t=100,b=150),
-        legend=dict(title='Response',traceorder='normal')
+        xaxis=dict(title='Percentage of Responses', range=[0,100] if orientation=='h' else None),
+        yaxis=dict(title='Role' if orientation=='h' else None),
+        height=max(500, 60*len(cross_tab)+150),
+        margin=dict(l=200, r=50, t=100, b=150),
+        legend=dict(title='Response', traceorder='normal')
     )
     return fig
 
 st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', 'Work Fulfillment Distribution by Role'), use_container_width=True)
 st.plotly_chart(create_stacked_bar(df, 'Recognition', 'Recognition Distribution by Role'), use_container_width=True)
 st.plotly_chart(create_stacked_bar(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
+
+# ----- CORRELATION ANALYSIS -----
+with tab3:
+    st.markdown("### Correlation Analysis: Numeric Survey Metrics")
+    
+    mapping = {
+        'Not at all':1, 'Slightly':2, 'Somewhat':3, 'Moderately':4, 'Extremely':5,
+        'No':0, 'Yes':1
+    }
+    
+    numeric_df = filtered_df.copy()
+    for col in ['Work_Fulfillment', 'Recognition', 'Growth_Potential']:
+        numeric_df[col+'_Score'] = numeric_df[col].map(lambda x: mapping.get(str(x), np.nan))
+    
+    numeric_cols = ['Work_Fulfillment_Score', 'Recognition_Score', 'Growth_Potential_Score', 'Recommendation_Score']
+    corr_matrix = numeric_df[numeric_cols].corr()
+    
+    fig_corr = px.imshow(
+        corr_matrix,
+        text_auto=True,
+        color_continuous_scale='RdYlGn',
+        title="Correlation Analysis of Survey Metrics",
+        aspect="auto"
+    )
+    fig_corr.update_layout(
+        margin=dict(l=50, r=50, t=100, b=50),
+        height=500
+    )
+    st.plotly_chart(fig_corr, use_container_width=True)
