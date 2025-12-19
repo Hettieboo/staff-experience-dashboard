@@ -241,16 +241,16 @@ with tab3:
         heatmap_data.append(row)
         role_labels.append(role)
     
-    # Question labels - compact and wrapped
+    # Question labels - clear and simple
     question_labels = [
-        'Extremely<br>Fulfilling<br>Work',
-        'Mixed<br>Fulfillment<br>Work',
-        'Somewhat<br>Fulfilling<br>Work',
-        'Yes, Feel<br>Recognized',
-        'Somewhat<br>Recognized',
-        'Yes, Growth<br>Potential',
-        'Some Growth<br>Potential',
-        'Avg Score<br>(0-10)'
+        'Work: Extremely Fulfilling',
+        'Work: Mixed Fulfillment',
+        'Work: Somewhat Fulfilling',
+        'Recognition: Yes, Feel Recognized',
+        'Recognition: Somewhat',
+        'Growth: Yes, Potential to Grow',
+        'Growth: Some Potential',
+        'Avg Recommendation Score (0-10)'
     ]
     
     # Create heatmap
@@ -260,16 +260,30 @@ with tab3:
     heatmap_display = heatmap_array.copy()
     heatmap_display[:, -1] = heatmap_display[:, -1] * 10  # Scale 0-10 to 0-100
     
-    # Create text labels
+    # Create text labels with better contrast
     text_labels = []
     for i, row in enumerate(heatmap_array):
         text_row = []
         for j, val in enumerate(row):
+            # Determine text color based on background color intensity
+            bg_value = heatmap_display[i, j]
+            # Use black text for light backgrounds (yellow/light green), white for dark
+            text_color = 'black' if 40 < bg_value < 75 else 'white'
+            
             if j == len(row) - 1:  # Last column is score
                 text_row.append(f'{val:.1f}')
             else:  # Others are percentages
                 text_row.append(f'{val:.0f}%')
         text_labels.append(text_row)
+    
+    # Create custom text colors array
+    text_colors = []
+    for i in range(len(heatmap_display)):
+        color_row = []
+        for j in range(len(heatmap_display[i])):
+            bg_value = heatmap_display[i, j]
+            color_row.append('black' if 40 < bg_value < 75 else 'white')
+        text_colors.append(color_row)
     
     fig_cross = go.Figure(data=go.Heatmap(
         z=heatmap_display,
@@ -278,7 +292,7 @@ with tab3:
         colorscale='RdYlGn',
         text=text_labels,
         texttemplate='%{text}',
-        textfont={"size": 11, "color": "white"},
+        textfont={"size": 12},
         colorbar=dict(
             title="Response<br>Rate (%)", 
             len=0.7,
@@ -288,13 +302,25 @@ with tab3:
         hovertemplate='<b>%{y}</b><br>%{x}<br>Value: %{text}<extra></extra>'
     ))
     
+    # Manually set text colors for better contrast
+    for i in range(len(text_colors)):
+        for j in range(len(text_colors[i])):
+            fig_cross.add_annotation(
+                x=question_labels[j],
+                y=role_labels[i],
+                text=text_labels[i][j],
+                showarrow=False,
+                font=dict(size=12, color=text_colors[i][j])
+            )
+    
     fig_cross.update_layout(
         title="Complete Cross-Analysis: How Each Role Responds to Each Question",
         xaxis_title='Survey Questions',
         yaxis_title='Role / Department',
         height=650,
-        margin=dict(l=200, r=50, t=100, b=100),
-        xaxis=dict(tickangle=0, tickfont=dict(size=10)),
+        width=1400,
+        margin=dict(l=180, r=80, t=100, b=120),
+        xaxis=dict(tickangle=-25, tickfont=dict(size=11)),
         yaxis=dict(tickfont=dict(size=11))
     )
     
@@ -403,7 +429,7 @@ def create_stacked_bar(df, value_col, title, orientation='h'):
     
     return fig
 
-def create_grouped_bar(df, value_col, title):
+def create_grouped_bar(df, value_col, title, color_scheme='pastel'):
     """Create grouped bar chart for comparison"""
     role_counts = df['Role'].value_counts().head(6)
     top_roles = role_counts.index.tolist()
@@ -412,13 +438,23 @@ def create_grouped_bar(df, value_col, title):
     cross_tab = pd.crosstab(df_filtered_local['Role_Short'], df_filtered_local[value_col], normalize='index')*100
     
     fig = go.Figure()
-    colors = px.colors.qualitative.Pastel
     
+    # Different color schemes
+    if color_scheme == 'pastel':
+        colors = px.colors.qualitative.Pastel
+    elif color_scheme == 'vivid':
+        colors = ['#e74c3c', '#f39c12', '#3498db', '#9b59b6', '#1abc9c', '#e67e22']
+    else:
+        colors = px.colors.qualitative.Set2
+    
+    # Shorten legend labels
     for idx, col in enumerate(cross_tab.columns):
+        short_label = str(col)[:40] + '...' if len(str(col)) > 40 else str(col)
+        
         fig.add_trace(go.Bar(
             x=cross_tab.index,
             y=cross_tab[col],
-            name=shorten_text(str(col), 25),
+            name=short_label,
             text=[f'{v:.1f}%' if v>3 else '' for v in cross_tab[col]],
             textposition='outside',
             marker_color=colors[idx % len(colors)],
@@ -447,12 +483,17 @@ def create_grouped_bar(df, value_col, title):
             gridcolor='#ecf0f1'
         ),
         height=550,
-        margin=dict(l=100, r=50, t=100, b=150),
+        margin=dict(l=100, r=250, t=100, b=150),
         legend=dict(
-            title='Response',
+            title='Response Type',
             bgcolor='rgba(255,255,255,0.9)',
             bordercolor='#34495e',
-            borderwidth=1
+            borderwidth=1,
+            x=1.02,
+            y=1,
+            xanchor='left',
+            yanchor='top',
+            font=dict(size=10)
         ),
         plot_bgcolor='white',
         paper_bgcolor='#f8f9fa'
@@ -466,11 +507,11 @@ def create_grouped_bar(df, value_col, title):
 # Chart 1: Horizontal Stacked Bar
 st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', '💼 Work Fulfillment Distribution by Role', orientation='h'), use_container_width=True)
 
-# Chart 2: Vertical Stacked Bar (Different style)
-st.plotly_chart(create_stacked_bar(df, 'Recognition', '🌟 Recognition Distribution by Role', orientation='v'), use_container_width=True)
+# Chart 2: Grouped Bar Chart with vivid colors (Recognition)
+st.plotly_chart(create_grouped_bar(df, 'Recognition', '🌟 Recognition Distribution by Role (Grouped)', color_scheme='vivid'), use_container_width=True)
 
-# Chart 3: Grouped Bar Chart (Side-by-side comparison)
-st.plotly_chart(create_grouped_bar(df, 'Growth_Potential', '📈 Growth Potential Distribution by Role (Grouped)'), use_container_width=True)
+# Chart 3: Grouped Bar Chart with pastel colors (Growth)
+st.plotly_chart(create_grouped_bar(df, 'Growth_Potential', '📈 Growth Potential Distribution by Role (Grouped)', color_scheme='pastel'), use_container_width=True)
 
 # 🔹 Stacked Bar Insights
 role_scores = df_insights.groupby('Role')['Recommendation_Score'].mean().sort_values()
