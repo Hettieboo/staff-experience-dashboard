@@ -196,6 +196,19 @@ with tab2:
     st.markdown("- Positive sentiment is highest among roles: " + ", ".join(top_roles_positive))
     st.markdown("- Roles showing lower recognition and growth potential should be prioritized for recognition programs or professional development.")
 
+# ------------------- DONUT CHART -------------------
+st.markdown("## 🥯 Recommendation Score Distribution")
+score_counts = filtered_df['Score_Band'].value_counts().sort_index()
+fig_donut = go.Figure(data=[go.Pie(
+    labels=score_counts.index,
+    values=score_counts.values,
+    hole=0.5,
+    textinfo='label+percent',
+    marker=dict(colors=px.colors.qualitative.Pastel)
+)])
+fig_donut.update_layout(title="Distribution of Recommendation Scores", height=400, margin=dict(l=50,r=50,t=50,b=50))
+st.plotly_chart(fig_donut, use_container_width=True)
+
 # ------------------- STACKED BARS -------------------
 st.markdown("## 🏗 Stacked Response Distribution by Role")
 def create_stacked_bar(df, value_col, title):
@@ -260,24 +273,36 @@ with tab3:
     numeric_df = df_insights.copy()
     for col in ['Work_Fulfillment', 'Recognition', 'Growth_Potential']:
         numeric_df[col+'_Score'] = numeric_df[col].map(lambda x: mapping.get(str(x), np.nan))
+    
     numeric_cols = ['Work_Fulfillment_Score', 'Recognition_Score', 'Growth_Potential_Score', 'Recommendation_Score']
-    corr_matrix = numeric_df[numeric_cols].corr().dropna()
-    fig_corr = px.imshow(
-        corr_matrix,
-        text_auto=True,
-        color_continuous_scale='RdYlGn',
-        title="Correlation Analysis of Survey Metrics",
-        aspect="auto"
-    )
+    corr_matrix = numeric_df[numeric_cols].corr().fillna(0)
+    
+    fig_corr = go.Figure(data=go.Heatmap(
+        z=corr_matrix.values,
+        x=corr_matrix.columns,
+        y=corr_matrix.columns,
+        colorscale='RdYlGn',
+        zmin=-1, zmax=1,
+        text=[[f'{v:.2f}' for v in row] for row in corr_matrix.values],
+        texttemplate='%{text}',
+        textfont={"size":12},
+        colorbar=dict(title="Correlation")
+    ))
+    
     fig_corr.update_layout(
-        margin=dict(l=50, r=50, t=100, b=50),
+        title="Correlation Analysis of Survey Metrics",
+        xaxis=dict(tickangle=-45),
+        yaxis=dict(autorange='reversed'),
+        margin=dict(l=100, r=50, t=100, b=100),
         height=500
     )
+    
     st.plotly_chart(fig_corr, use_container_width=True)
     
     # 🔹 Correlation Insights
     corr_pairs = corr_matrix.unstack().sort_values(ascending=False)
-    strong_corr = [f"{i[0]} ↔ {i[1]}: {v:.2f}" for i,v in corr_pairs.items() if i[0]!=i[1] and abs(v) > 0.5][:5]
+    strong_corr = [f"{i[0]} ↔ {i[1]}: {v:.2f}" 
+                   for i,v in corr_pairs.items() if i[0]!=i[1] and abs(v) > 0.5][:5]
     st.markdown("### 📝 Insights & Recommendations")
     st.markdown("- Strong correlations observed between metrics:")
     for pair in strong_corr:
