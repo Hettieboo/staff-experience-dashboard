@@ -24,19 +24,20 @@ st.markdown("""
         color: white;
         text-align: center;
         margin-bottom: 1rem;
-        height: 120px;
+        height: 135px;
         display: flex;
         flex-direction: column;
         justify-content: center;
     }
     .metric-value {
-        font-size: 2rem;
+        font-size: 1.9rem;
         font-weight: bold;
         margin: 5px 0;
     }
     .metric-label {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         opacity: 0.9;
+        line-height: 1.3;
     }
 </style>
 """, unsafe_allow_html=True)
