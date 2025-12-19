@@ -33,25 +33,6 @@ st.markdown("""
         font-size: 1rem;
         opacity: 0.9;
     }
-    .insight-card {
-        background: #f0f7ff;
-        border-left: 4px solid #667eea;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        border-radius: 5px;
-    }
-    .insight-positive {
-        background: #f0fff4;
-        border-left: 4px solid #48bb78;
-    }
-    .insight-negative {
-        background: #fff5f5;
-        border-left: 4px solid #f56565;
-    }
-    .insight-neutral {
-        background: #fffaf0;
-        border-left: 4px solid #ed8936;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -161,27 +142,6 @@ with col4:
 
 st.markdown("---")
 
-# ================= KEY INSIGHTS =================
-st.markdown("## 🔍 Key Insights & Patterns")
-overall_avg = df['Recommendation_Score'].mean()
-role_scores = df.groupby('Role')['Recommendation_Score'].agg(['mean', 'count']).round(2)
-role_scores = role_scores[role_scores['count'] >= 5]
-lowest_role = role_scores['mean'].idxmin()
-highest_role = role_scores['mean'].idxmax()
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown(f"""
-    <div class="insight-card insight-negative">
-        <strong>⚠️ Lowest Scoring Role:</strong> {lowest_role} (avg: {role_scores.loc[lowest_role,'mean']:.1f})
-    </div>
-    <div class="insight-card insight-positive">
-        <strong>✅ Highest Scoring Role:</strong> {highest_role} (avg: {role_scores.loc[highest_role,'mean']:.1f})
-    </div>
-    """ , unsafe_allow_html=True)
-with col2:
-    st.markdown("### Demographics insights placeholder")
-st.markdown("---")
-
 # ================= CROSS-ANALYSIS / ROLE COMPARISONS =================
 st.markdown("## 📈 Cross-Analysis: Demographics vs. Employee Sentiment")
 tab1, tab2, tab3 = st.tabs(["🎯 Score Comparisons", "🔥 Sentiment Heatmap", "🔗 Correlation Analysis"])
@@ -194,15 +154,10 @@ with tab2:
         top_roles = df['Role'].value_counts().head(8).index.tolist()
         df_filtered = df[df['Role'].isin(top_roles)]
         df_filtered['Role_Short'] = df_filtered['Role'].apply(shorten_role)
-        
-        # Row-normalized percentages
         cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[question_col], normalize='index')*100
-        
-        # Sort by "positive" response if exists
         positive_cols = [col for col in cross_tab.columns if 'extremely' in str(col).lower() or 'yes' in str(col).lower()]
         if positive_cols:
             cross_tab = cross_tab.sort_values(by=positive_cols[0], ascending=True)
-        
         fig = go.Figure(data=go.Heatmap(
             z=cross_tab.values,
             x=[col[:50]+'...' if len(str(col))>50 else str(col) for col in cross_tab.columns],
@@ -229,6 +184,11 @@ with tab2:
     st.plotly_chart(create_sentiment_heatmap(df, 'Recognition', 'Recognition Sentiment by Role'), use_container_width=True)
     st.subheader("Growth Potential by Role")
     st.plotly_chart(create_sentiment_heatmap(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
+    
+    # 🔹 Heatmap Insights
+    st.markdown("### 📝 Insights & Recommendations")
+    st.markdown("- Positive sentiment is highest among roles: " + ", ".join(df_filtered[df_filtered['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]['Role_Short'].unique()))
+    st.markdown("- Roles showing lower recognition and growth potential should be prioritized for recognition programs or professional development.")
 
 # ----- STACKED BAR CHARTS -----
 st.markdown("## 🏗 Stacked Response Distribution by Role")
@@ -237,17 +197,13 @@ def create_stacked_bar(df, value_col, title):
     top_roles = role_counts.index.tolist()
     df_filtered = df[df['Role'].isin(top_roles)]
     df_filtered['Role_Short'] = df_filtered['Role'].apply(shorten_role)
-    
     cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[value_col], normalize='index')*100
     role_short_order = [shorten_role(r) for r in top_roles]
     cross_tab = cross_tab.reindex(role_short_order)
-    
     max_label_len = max([len(r) for r in cross_tab.index])
     orientation = 'h' if max_label_len > 20 else 'v'
-    
     fig = go.Figure()
     colors = px.colors.qualitative.Set3
-    
     for idx, col in enumerate(cross_tab.columns):
         if orientation == 'h':
             x_vals, y_vals = cross_tab[col], cross_tab.index
@@ -255,9 +211,7 @@ def create_stacked_bar(df, value_col, title):
         else:
             x_vals, y_vals = cross_tab.index, cross_tab[col]
             textposition = 'auto'
-        
         text_values = [f'{v:.1f}%' if v>5 else '' for v in cross_tab[col]]
-        
         fig.add_trace(go.Bar(
             x=x_vals if orientation=='h' else y_vals,
             y=y_vals if orientation=='h' else x_vals,
@@ -267,7 +221,6 @@ def create_stacked_bar(df, value_col, title):
             textposition=textposition,
             marker_color=colors[idx % len(colors)]
         ))
-    
     fig.update_layout(
         barmode='stack',
         title=title,
@@ -283,22 +236,25 @@ st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', 'Work Fulfillment Dis
 st.plotly_chart(create_stacked_bar(df, 'Recognition', 'Recognition Distribution by Role'), use_container_width=True)
 st.plotly_chart(create_stacked_bar(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
 
+# 🔹 Stacked Bar Insights
+st.markdown("### 📝 Insights & Recommendations")
+st.markdown("- Roles with highest percentages of 'Extremely' fulfilling responses: " + ", ".join(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]['Role_Short'].unique()))
+role_scores = df.groupby('Role')['Recommendation_Score'].mean().sort_values()
+st.markdown("- Roles with lowest recommendation scores: " + ", ".join(role_scores.head(3).index))
+st.markdown("- Consider targeted interventions for roles with consistently low scores in Work Fulfillment, Recognition, or Growth Potential.")
+
 # ----- CORRELATION ANALYSIS -----
 with tab3:
     st.markdown("### Correlation Analysis: Numeric Survey Metrics")
-    
     mapping = {
         'Not at all':1, 'Slightly':2, 'Somewhat':3, 'Moderately':4, 'Extremely':5,
         'No':0, 'Yes':1
     }
-    
     numeric_df = filtered_df.copy()
     for col in ['Work_Fulfillment', 'Recognition', 'Growth_Potential']:
         numeric_df[col+'_Score'] = numeric_df[col].map(lambda x: mapping.get(str(x), np.nan))
-    
     numeric_cols = ['Work_Fulfillment_Score', 'Recognition_Score', 'Growth_Potential_Score', 'Recommendation_Score']
     corr_matrix = numeric_df[numeric_cols].corr()
-    
     fig_corr = px.imshow(
         corr_matrix,
         text_auto=True,
@@ -311,3 +267,12 @@ with tab3:
         height=500
     )
     st.plotly_chart(fig_corr, use_container_width=True)
+    
+    # 🔹 Correlation Insights
+    corr_pairs = corr_matrix.unstack().sort_values(ascending=False)
+    strong_corr = [f"{i[0]} ↔ {i[1]}: {v:.2f}" for i,v in corr_pairs.items() if i[0]!=i[1] and abs(v) > 0.5][:5]
+    st.markdown("### 📝 Insights & Recommendations")
+    st.markdown("- Strong correlations observed between metrics:")
+    for pair in strong_corr:
+        st.markdown(f"  - {pair}")
+    st.markdown("- Use these correlations to guide targeted improvements in areas where low fulfillment, recognition, or growth potential scores overlap.")
