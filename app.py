@@ -398,7 +398,9 @@ def create_stacked_bar(df, value_col, title, orientation='v'):
     cross_tab = cross_tab.reindex(role_short_order)
     
     fig = go.Figure()
-    colors = px.colors.qualitative.Set3
+    
+    # Bold, vibrant colors that POP - no pale yellows!
+    bold_colors = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#f39c12', '#1abc9c', '#e67e22', '#34495e']
     
     for idx, col in enumerate(cross_tab.columns):
         # Shorten legend labels for readability
@@ -413,53 +415,58 @@ def create_stacked_bar(df, value_col, title, orientation='v'):
             orientation='v',    # Force vertical
             text=text_values,
             textposition='inside',
-            textfont=dict(color='white', size=11),
-            marker_color=colors[idx % len(colors)],
-            marker_line_color='#34495e',
-            marker_line_width=1
+            textfont=dict(color='white', size=12, family='Arial Black'),
+            marker_color=bold_colors[idx % len(bold_colors)],
+            marker_line_color='#2c3e50',
+            marker_line_width=2
         ))
     
     fig.update_layout(
         barmode='stack',
-        title=dict(text=title, font=dict(size=16, color='#2c3e50')),
+        title=dict(text=title, font=dict(size=18, color='#2c3e50', family='Arial Black')),
         xaxis=dict(
             title='Role',
+            titlefont=dict(size=14, color='#2c3e50', family='Arial Black'),
             showline=True,
-            linewidth=2,
-            linecolor='#34495e',
+            linewidth=3,
+            linecolor='#2c3e50',
             showgrid=False,
-            tickangle=-30
+            tickangle=-30,
+            tickfont=dict(size=11, color='#2c3e50')
         ),
         yaxis=dict(
             title='Percentage of Responses',
+            titlefont=dict(size=14, color='#2c3e50', family='Arial Black'),
             range=[0,105],
             showline=True,
-            linewidth=2,
-            linecolor='#34495e',
+            linewidth=3,
+            linecolor='#2c3e50',
             showgrid=True,
-            gridcolor='#ecf0f1'
+            gridcolor='#bdc3c7',
+            gridwidth=1,
+            tickfont=dict(size=11, color='#2c3e50')
         ),
         height=600,
         margin=dict(l=100, r=250, t=100, b=150),
         legend=dict(
-            title='Response Type',
+            title=dict(text='Response Type', font=dict(size=12, family='Arial Black')),
             traceorder='normal',
-            bgcolor='rgba(255,255,255,0.9)',
-            bordercolor='#34495e',
-            borderwidth=1,
+            bgcolor='rgba(255,255,255,0.95)',
+            bordercolor='#2c3e50',
+            borderwidth=2,
             x=1.02,
             y=1,
             xanchor='left',
             yanchor='top',
-            font=dict(size=10)
+            font=dict(size=10, color='#2c3e50')
         ),
-        plot_bgcolor='white',
-        paper_bgcolor='#f8f9fa'
+        plot_bgcolor='#ecf0f1',
+        paper_bgcolor='white'
     )
     
-    # Add frame around the plot
-    fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
-    fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+    # Add bold frame around the plot
+    fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#2c3e50', linewidth=3)
+    fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#2c3e50', linewidth=3)
     
     return fig
 
