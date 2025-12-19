@@ -43,7 +43,7 @@ st.markdown("""
 @st.cache_data
 def load_data():
     df = pd.read_excel("Combined- Cross Analysis.xlsx")
-    # Map original long question texts to simple column labels
+    # Rename to short labels but keep original content
     df.columns = [
         "Role",
         "Ethnicity",
@@ -51,7 +51,7 @@ def load_data():
         "Work_Fulfillment",
         "Recommendation_Score",
         "Recognition",
-        "Growth_Potential"
+        "Growth_Potential",
     ]
     return df
 
@@ -62,7 +62,7 @@ try:
     # Header
     # =========================
     st.title("📊 Employee Survey Cross-Analysis Dashboard")
-    st.markdown("### Comparing employee groups across survey questions (using only the original answers).")
+    st.markdown("### Simple view of how different groups answered each survey question.[file:21]")
 
     # =========================
     # Sidebar filters
@@ -112,41 +112,47 @@ try:
         """, unsafe_allow_html=True)
 
     with col3:
-        # Simple count of lowest vs highest answers (still only dataset values)
-        low_rec = len(filtered_df[filtered_df["Recommendation_Score"] <= 6]) if total > 0 else 0
-        high_rec = len(filtered_df[filtered_df["Recommendation_Score"] >= 9]) if total > 0 else 0
+        # simple low/high counts based on the raw 0–10 values
+        if total > 0:
+            low = len(filtered_df[filtered_df["Recommendation_Score"] <= 4])
+            high = len(filtered_df[filtered_df["Recommendation_Score"] >= 8])
+        else:
+            low = high = 0
         st.markdown(f"""
             <div class="metric-card metric-card-orange">
-                <div class="metric-label">Low vs High Recommenders</div>
-                <div class="metric-value">{low_rec}:{high_rec}</div>
+                <div class="metric-label">Low vs High Scores (≤4 / ≥8)</div>
+                <div class="metric-value">{low}:{high}</div>
             </div>
         """, unsafe_allow_html=True)
 
     with col4:
-        fulfilled = len(
-            filtered_df[
-                filtered_df["Work_Fulfillment"]
-                .astype(str)
-                .str.contains("extremely", case=False, na=False)
-            ]
-        ) if total > 0 else 0
-        pct = (fulfilled / total * 100) if total > 0 else 0
+        if total > 0:
+            fulfilled = len(
+                filtered_df[
+                    filtered_df["Work_Fulfillment"]
+                    .astype(str)
+                    .str.contains("extremely", case=False, na=False)
+                ]
+            )
+            pct_full = fulfilled / total * 100
+        else:
+            pct_full = 0
         st.markdown(f"""
             <div class="metric-card metric-card-green">
                 <div class="metric-label">“Extremely fulfilling”</div>
-                <div class="metric-value">{pct:.0f}%</div>
+                <div class="metric-value">{pct_full:.0f}%</div>
             </div>
         """, unsafe_allow_html=True)
 
     st.markdown("---")
 
     # =========================
-    # Helper: 100% stacked bar
+    # Helper: 100% stacked horizontal bar
     # =========================
     def stacked_percent_bar(df_in, group_col, question_col, title):
         sub = df_in[[group_col, question_col]].dropna().copy()
         if sub.empty:
-            st.info(f"No data available for {title} with current filters.")
+            st.info(f"No data for {title} with current filters.")
             return
 
         tab = pd.crosstab(sub[group_col], sub[question_col], normalize="index") * 100
@@ -178,11 +184,12 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
     # =========================
-    # 1. Recommendation Score
+    # 1. Recommendation question
     # =========================
     st.header("How likely are you to recommend Homes First as a good place to work?")
 
     if total > 0 and filtered_df["Recommendation_Score"].notna().any():
+        # Horizontal bar: distribution of 0–10
         rec_counts = (
             filtered_df["Recommendation_Score"]
             .dropna()
@@ -193,21 +200,51 @@ try:
         )
         rec_counts.columns = ["Score", "Count"]
 
-        fig_rec = px.bar(
-            rec_counts,
-            x="Score",
-            y="Count",
-            labels={"Count": "Number of respondents"},
-            title="Distribution of recommendation scores (0–10)",
-        )
-        fig_rec.update_layout(yaxis=dict(automargin=True))
-        st.plotly_chart(fig_rec, use_container_width=True)
+        col_rec1, col_rec2 = st.columns(2)
 
-        # Recommendation by Role – still just counts/percentages of the original scores
-        st.subheader("Recommendation scores by role")
+        with col_rec1:
+            fig_rec = px.bar(
+                rec_counts,
+                y="Score",
+                x="Count",
+                orientation="h",
+                labels={"Count": "Number of respondents"},
+                title="Score distribution (0–10)",
+            )
+            fig_rec.update_layout(yaxis=dict(automargin=True))
+            st.plotly_chart(fig_rec, use_container_width=True)
+
+        # Donut: share of score bands (still only using the existing 0–10 values)
+        with col_rec2:
+            rec_band = rec_counts.copy()
+            rec_band["Band"] = pd.cut(
+                rec_band["Score"],
+                bins=[-1, 3, 6, 8, 10],
+                labels=["0–3", "4–6", "7–8", "9–10"],
+            )
+            band_counts = rec_band.groupby("Band")["Count"].sum().reset_index()
+            band_counts = band_counts[band_counts["Band"].notna()]
+
+            if not band_counts.empty:
+                fig_donut = px.pie(
+                    band_counts,
+                    names="Band",
+                    values="Count",
+                    hole=0.5,
+                    title="Score bands (0–3, 4–6, 7–8, 9–10)",
+                )
+                fig_donut.update_traces(textposition="inside", textinfo="percent+label")
+                st.plotly_chart(fig_donut, use_container_width=True)
+            else:
+                st.info("Not enough data to show the donut chart.")
+
+        # 100% stacked horizontal bar: scores by role
+        st.subheader("Score distribution by role (%)")
         stacked_percent_bar(
-            filtered_df, "Role", "Recommendation_Score",
-            "Recommendation score distribution by role (%)"
+            filtered_df,
+            "Role",
+            "Recommendation_Score",
+            "Recommendation score distribution by role (%)",
         )
     else:
         st.info("No recommendation data for the current filters.")
@@ -219,11 +256,12 @@ try:
     # =========================
     st.header("How fulfilling and rewarding do you find your work?")
 
+    # Stacked horizontal bar by role
     stacked_percent_bar(
         filtered_df,
         "Role",
         "Work_Fulfillment",
-        "Work fulfillment distribution by role (%)"
+        "Work fulfillment distribution by role (%)",
     )
 
     st.markdown("---")
@@ -237,7 +275,7 @@ try:
         filtered_df,
         "Role",
         "Recognition",
-        "Recognition distribution by role (%)"
+        "Recognition distribution by role (%)",
     )
 
     st.markdown("---")
@@ -251,15 +289,15 @@ try:
         filtered_df,
         "Role",
         "Growth_Potential",
-        "Growth potential distribution by role (%)"
+        "Growth potential distribution by role (%)",
     )
 
     st.markdown("---")
 
     # =========================
-    # 5. Optional: Ethnicity and Disability overview
+    # 5. Context – Ethnicity & Disability
     # =========================
-    st.header("Context: who answered the survey?")
+    st.header("Who answered the survey? (context only)")
 
     col_ctx1, col_ctx2 = st.columns(2)
 
@@ -306,7 +344,7 @@ try:
             st.info("No disability data for the current filters.")
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Cross-Analysis Dashboard – Simple view**")
+    st.sidebar.markdown("**Cross-Analysis Dashboard – Bars & Donuts**")
 
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
