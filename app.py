@@ -70,7 +70,7 @@ df = load_data()
 st.markdown('<div class="main-title">Homes First Employee Survey Dashboard</div>', unsafe_allow_html=True)
 
 # Sidebar filters
-st.sidebar.header("Filters")
+st.sidebar.header("🔍 Filters")
 roles = ['All'] + sorted(df['Role'].dropna().unique().tolist())
 role_filter = st.sidebar.selectbox("Role", roles)
 ethnicities = ['All'] + sorted(df['Ethnicity'].dropna().unique().tolist())
@@ -110,7 +110,7 @@ def shorten_role(role):
         'Other (Smaller departments/teams not listed seperately in an effort to maintain confidentiality)': 'Other',
         'Prefer not to disclose/Other': 'Prefer not to disclose',
     }
-    return mapping.get(role, role)
+    return mapping.get(role, str(role))
 
 def shorten_text(text, max_length=60):
     if not isinstance(text, str): return str(text)
@@ -120,7 +120,7 @@ filtered_df['Score_Band'] = filtered_df['Recommendation_Score'].apply(get_score_
 df['Disability_Category'] = df['Disability'].apply(categorize_disability)
 filtered_df['Disability_Category'] = filtered_df['Disability'].apply(categorize_disability)
 
-# ============= 1. KPIs (SMALLER CARDS) =============
+# ============= 1. KPIs (SMALLER CARDS - FIXED) =============
 st.markdown("## 📌 Key Metrics")
 col1, col2, col3, col4 = st.columns(4)
 
@@ -134,16 +134,17 @@ with col1:
 
 with col2:
     avg_score_f = filtered_df['Recommendation_Score'].mean()
+    avg_display = f"{avg_score_f:.1f}" if not np.isnan(avg_score_f) else "0.0"  # FIXED
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{avg_score_f:.1f if not np.isnan(avg_score_f) else 0:.1f}</div>
+        <div class="metric-value">{avg_display}</div>
         <div class="metric-label">Avg Recommendation</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
-    low_scores_f = len(filtered_df[filtered_df['Recommendation_Score'] <= 4])
-    high_scores_f = len(filtered_df[filtered_df['Recommendation_Score'] >= 8])
+    low_scores_f = len(filtered_df[filtered_df['Recommendation_Score'] <= 4].dropna())
+    high_scores_f = len(filtered_df[filtered_df['Recommendation_Score'] >= 8].dropna())
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value">{low_scores_f}/{high_scores_f}</div>
@@ -163,7 +164,7 @@ with col4:
 
 st.markdown("---")
 
-# ============= 2. KEY INSIGHTS (BELOW KPIs) =============
+# ============= 2. KEY INSIGHTS =============
 st.markdown("## 🔍 Key Insights")
 overall_avg = df['Recommendation_Score'].mean()
 
@@ -176,9 +177,9 @@ lowest_role = role_scores['mean'].idxmin() if len(role_scores) > 0 else None
 highest_role = role_scores['mean'].idxmax() if len(role_scores) > 0 else None
 
 extremely_fulfilling = df[df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]
-avg_score_extremely = extremely_fulfilling['Recommendation_Score'].mean()
+avg_score_extremely = extremely_fulfilling['Recommendation_Score'].mean() if len(extremely_fulfilling) > 0 else 0
 not_extremely = df[~df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]
-avg_score_not_extremely = not_extremely['Recommendation_Score'].mean()
+avg_score_not_extremely = not_extremely['Recommendation_Score'].mean() if len(not_extremely) > 0 else 0
 
 col_ins1, col_ins2 = st.columns(2)
 with col_ins1:
@@ -187,8 +188,10 @@ with col_ins1:
     if not np.isnan(diff_fulfillment) and diff_fulfillment > 2:
         st.markdown(f'<div class="insight-card insight-positive"><strong>✅ Fulfillment Link:</strong> "Extremely fulfilling" scores {diff_fulfillment:.1f}pts higher</div>', unsafe_allow_html=True)
     
-    if lowest_role: st.markdown(f'<div class="insight-card insight-negative"><strong>⚠️ Lowest Role:</strong> {shorten_role(lowest_role)} ({role_scores.loc[lowest_role, "mean"]:.1f})</div>', unsafe_allow_html=True)
-    if highest_role: st.markdown(f'<div class="insight-card insight-positive"><strong>✅ Highest Role:</strong> {shorten_role(highest_role)} ({role_scores.loc[highest_role, "mean"]:.1f})</div>', unsafe_allow_html=True)
+    if lowest_role: 
+        st.markdown(f'<div class="insight-card insight-negative"><strong>⚠️ Lowest Role:</strong> {shorten_role(lowest_role)} ({role_scores.loc[lowest_role, "mean"]:.1f})</div>', unsafe_allow_html=True)
+    if highest_role: 
+        st.markdown(f'<div class="insight-card insight-positive"><strong>✅ Highest Role:</strong> {shorten_role(highest_role)} ({role_scores.loc[highest_role, "mean"]:.1f})</div>', unsafe_allow_html=True)
 
 with col_ins2:
     st.markdown("### 👥 Demographics")
@@ -202,7 +205,9 @@ st.markdown("---")
 # ============= 3. STACKED BAR HELPER =============
 def create_stacked_bar(df_in, question_col, title, top_n=8):
     sub = df_in[['Role', question_col]].dropna()
-    if sub.empty: return st.info(f"No data for {title}")
+    if sub.empty: 
+        st.info(f"No data for {title}")
+        return
     
     top_roles = sub['Role'].value_counts().head(top_n).index
     sub = sub[sub['Role'].isin(top_roles)].copy()
@@ -225,30 +230,33 @@ st.markdown("## 📊 Question Breakdowns by Role")
 st.subheader("Recommendation Score (0-10)")
 col1, col2 = st.columns(2)
 with col1:
-    rec_counts = filtered_df['Recommendation_Score'].dropna().astype(int).value_counts().sort_index().reset_index()
-    rec_counts.columns = ['Score', 'Count']
-    all_scores = pd.DataFrame({'Score': range(11)})
-    rec_counts = all_scores.merge(rec_counts, on='Score', how='left').fillna(0)['Count'].astype(int)
-    fig_rec = px.bar(x=rec_counts.values, y=all_scores['Score'], orientation='h', 
-                    title='Score Distribution', color=rec_counts.values, color_continuous_scale='Blues')
-    st.plotly_chart(fig_rec, use_container_width=True)
+    rec_scores = filtered_df['Recommendation_Score'].dropna().astype(int)
+    if len(rec_scores) > 0:
+        rec_counts = rec_scores.value_counts().sort_index().reset_index()
+        rec_counts.columns = ['Score', 'Count']
+        all_scores = pd.DataFrame({'Score': range(11)})
+        rec_counts = all_scores.merge(rec_counts, on='Score', how='left').fillna(0)
+        fig_rec = px.bar(rec_counts, x='Count', y='Score', orientation='h', 
+                        title='Score Distribution', color='Count', color_continuous_scale='Blues')
+        fig_rec.update_layout(height=400, showlegend=False)
+        st.plotly_chart(fig_rec, use_container_width=True)
 
 with col2:
-    if 'Score_Band' in filtered_df.columns:
+    if 'Score_Band' in filtered_df.columns and filtered_df['Score_Band'].notna().any():
         band_counts = filtered_df['Score_Band'].value_counts().reindex(['0–3','4–6','7–8','9–10'], fill_value=0)
         fig_donut = px.pie(values=band_counts.values, names=band_counts.index, hole=0.4, 
                           title='Score Bands', color_discrete_sequence=['#ef5350','#ffa726','#66bb6a','#42a5f5'])
         st.plotly_chart(fig_donut, use_container_width=True)
 
-create_stacked_bar(filtered_df, 'Score_Band', 'Recommendation Bands by Role', top_n=8)
+create_stacked_bar(filtered_df, 'Score_Band', 'Recommendation Bands by Role (Top 8)', top_n=8)
 
 # Other questions
 for q, title in [('Work_Fulfillment', 'Work Fulfillment'), ('Recognition', 'Recognition'), ('Growth_Potential', 'Growth Potential')]:
-    st.markdown(f"---")
+    st.markdown("---")
     st.subheader(f"{title} by Role")
     create_stacked_bar(filtered_df, q, f'{title} Distribution by Role (Top 8)', top_n=8)
 
-# ============= 5. CONTEXT CHARTS (FROM OLDER VERSION) =============
+# ============= 5. CONTEXT CHARTS =============
 st.markdown("## 👥 Context: Who Responded?")
 tab1, tab2 = st.tabs(["🌍 Ethnicity", "♿ Disability"])
 
@@ -277,4 +285,4 @@ st.markdown("---")
 st.markdown("<div style='text-align: center; color: #666; padding: 1rem;'><p>📊 Homes First Survey Dashboard | Filters apply to all charts</p></div>", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Complete Dashboard v2.0**")
+st.sidebar.markdown("**Complete Dashboard v2.0 - Fixed**")
