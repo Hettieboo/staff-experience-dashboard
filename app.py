@@ -146,8 +146,6 @@ st.markdown("---")
 st.markdown("## 📈 Cross-Analysis: Demographics vs. Employee Sentiment")
 tab1, tab2, tab3 = st.tabs(["🎯 Score Comparisons", "🔥 Sentiment Heatmap", "🔗 Correlation Analysis"])
 
-# =================== INSIGHTS HELPERS ===================
-# Create a separate copy for insights to avoid NameError
 df_insights = filtered_df.copy()
 df_insights['Role_Short'] = df_insights['Role'].apply(shorten_role)
 
@@ -196,17 +194,18 @@ with tab2:
     st.markdown("- Positive sentiment is highest among roles: " + ", ".join(top_roles_positive))
     st.markdown("- Roles showing lower recognition and growth potential should be prioritized for recognition programs or professional development.")
 
-# ------------------- DONUT CHART -------------------
-st.markdown("## 🥯 Recommendation Score Distribution")
-score_counts = filtered_df['Score_Band'].value_counts().sort_index()
+# ------------------- DONUT CHART (ROLE DISTRIBUTION) -------------------
+st.markdown("## 🥯 Respondent Distribution by Role")
+role_counts = filtered_df['Role'].value_counts()
 fig_donut = go.Figure(data=[go.Pie(
-    labels=score_counts.index,
-    values=score_counts.values,
-    hole=0.5,
+    labels=role_counts.index,
+    values=role_counts.values,
+    hole=0.4,
+    pull=[0.05]*len(role_counts),
     textinfo='label+percent',
-    marker=dict(colors=px.colors.qualitative.Pastel)
+    marker=dict(colors=px.colors.qualitative.Set3)
 )])
-fig_donut.update_layout(title="Distribution of Recommendation Scores", height=400, margin=dict(l=50,r=50,t=50,b=50))
+fig_donut.update_layout(title="Distribution of Respondents by Role", height=450, margin=dict(l=50,r=50,t=50,b=50))
 st.plotly_chart(fig_donut, use_container_width=True)
 
 # ------------------- STACKED BARS -------------------
@@ -266,16 +265,18 @@ st.markdown("- Consider targeted interventions for roles with consistently low s
 # ------------------- CORRELATION ANALYSIS -------------------
 with tab3:
     st.markdown("### Correlation Analysis: Numeric Survey Metrics")
+    
     mapping = {
         'Not at all':1, 'Slightly':2, 'Somewhat':3, 'Moderately':4, 'Extremely':5,
         'No':0, 'Yes':1
     }
-    numeric_df = df_insights.copy()
+    
+    numeric_df = filtered_df.copy()
     for col in ['Work_Fulfillment', 'Recognition', 'Growth_Potential']:
         numeric_df[col+'_Score'] = numeric_df[col].map(lambda x: mapping.get(str(x), np.nan))
     
     numeric_cols = ['Work_Fulfillment_Score', 'Recognition_Score', 'Growth_Potential_Score', 'Recommendation_Score']
-    corr_matrix = numeric_df[numeric_cols].corr().fillna(0)
+    corr_matrix = numeric_df[numeric_cols].corr()
     
     fig_corr = go.Figure(data=go.Heatmap(
         z=corr_matrix.values,
@@ -296,7 +297,6 @@ with tab3:
         margin=dict(l=100, r=50, t=100, b=100),
         height=500
     )
-    
     st.plotly_chart(fig_corr, use_container_width=True)
     
     # 🔹 Correlation Insights
