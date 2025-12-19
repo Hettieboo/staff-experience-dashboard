@@ -388,7 +388,7 @@ with tab3:
 # ------------------- VARIED CHART TYPES -------------------
 st.markdown("## 🏗 Response Distribution by Role")
 
-def create_stacked_bar(df, value_col, title, orientation='h'):
+def create_stacked_bar(df, value_col, title, orientation='v'):
     role_counts = df['Role'].value_counts().head(8)
     top_roles = role_counts.index.tolist()
     df_filtered_local = df[df['Role'].isin(top_roles)]
@@ -401,54 +401,65 @@ def create_stacked_bar(df, value_col, title, orientation='h'):
     colors = px.colors.qualitative.Set3
     
     for idx, col in enumerate(cross_tab.columns):
-        if orientation == 'h':
-            x_vals, y_vals = cross_tab[col], cross_tab.index
+        # Shorten legend labels for readability
+        short_label = str(col)[:45] + '...' if len(str(col)) > 45 else str(col)
+        
+        if orientation == 'v':
+            x_vals, y_vals = cross_tab.index, cross_tab[col]
             textposition = 'inside'
         else:
-            x_vals, y_vals = cross_tab.index, cross_tab[col]
-            textposition = 'auto'
+            x_vals, y_vals = cross_tab[col], cross_tab.index
+            textposition = 'inside'
+            
         text_values = [f'{v:.1f}%' if v>5 else '' for v in cross_tab[col]]
         fig.add_trace(go.Bar(
-            x=x_vals if orientation=='h' else y_vals,
-            y=y_vals if orientation=='h' else x_vals,
-            name=shorten_text(str(col), 30),
-            orientation=orientation,
+            x=x_vals,
+            y=y_vals,
+            name=short_label,
+            orientation='v' if orientation=='v' else 'h',
             text=text_values,
             textposition=textposition,
             textfont=dict(color='white', size=11),
-            marker_color=colors[idx % len(colors)]
+            marker_color=colors[idx % len(colors)],
+            marker_line_color='#34495e',
+            marker_line_width=1
         ))
     
     fig.update_layout(
         barmode='stack',
         title=dict(text=title, font=dict(size=16, color='#2c3e50')),
         xaxis=dict(
-            title='Percentage of Responses' if orientation=='h' else 'Role',
-            range=[0,100] if orientation=='h' else None,
+            title='Role' if orientation=='v' else 'Percentage of Responses',
+            range=None if orientation=='v' else [0,100],
             showline=True,
             linewidth=2,
             linecolor='#34495e',
-            showgrid=True,
+            showgrid=False if orientation=='v' else True,
             gridcolor='#ecf0f1',
-            zeroline=True
+            tickangle=-30 if orientation=='v' else 0
         ),
         yaxis=dict(
-            title='Role' if orientation=='h' else 'Percentage of Responses',
-            range=[0,100] if orientation=='v' else None,
+            title='Percentage of Responses' if orientation=='v' else 'Role',
+            range=[0,105] if orientation=='v' else None,
             showline=True,
             linewidth=2,
             linecolor='#34495e',
             showgrid=True,
             gridcolor='#ecf0f1'
         ),
-        height=max(500, 60*len(cross_tab)+150) if orientation=='h' else 600,
-        margin=dict(l=200, r=50, t=100, b=150),
+        height=600,
+        margin=dict(l=100, r=250, t=100, b=150),
         legend=dict(
-            title='Response',
+            title='Response Type',
             traceorder='normal',
             bgcolor='rgba(255,255,255,0.9)',
             bordercolor='#34495e',
-            borderwidth=1
+            borderwidth=1,
+            x=1.02,
+            y=1,
+            xanchor='left',
+            yanchor='top',
+            font=dict(size=10)
         ),
         plot_bgcolor='white',
         paper_bgcolor='#f8f9fa'
