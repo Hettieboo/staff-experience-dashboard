@@ -1,466 +1,511 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.io as pio
-import textwrap
 
-# ----------------------
-# Global Plotly style
-# ----------------------
-pio.templates.default = "plotly_white"
-PLOTLY_TEMPLATE = "plotly_white"
-
-PRIMARY_SEQ = ["#4facfe"]
-SECONDARY_SEQ = ["#00b4d8"]
-
-# ----------------------
-# Helpers
-# ----------------------
-def wrap_label(label, width=30):
-    if not isinstance(label, str):
-        return label
-    return "<br>".join(textwrap.wrap(label, width=width))
-
-def split_multi(series):
-    return sorted(set(
-        e.strip()
-        for sublist in series.dropna().astype(str).str.split(',')
-        for e in sublist if e.strip()
-    ))
-
-
-# ----------------------
 # Page configuration
-# ----------------------
-st.set_page_config(
-    page_title="Survey Cross-Analysis",
-    page_icon="📊",
-    layout="wide"
-)
+st.set_page_config(page_title="Survey Cross-Analysis", page_icon="📊", layout="wide")
 
 # Custom CSS
 st.markdown("""
-<style>
-.main {padding: 0rem 1rem;}
-h1 {color: #2c3e50; padding-bottom: 10px;}
-h2 {color: #34495e; padding-top: 15px; padding-bottom: 10px;}
-.metric-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 20px;
-    border-radius: 10px;
-    color: white;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    margin-bottom: 10px;
-}
-.metric-card-green {background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);}
-.metric-card-blue {background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);}
-.metric-card-orange {background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);}
-.metric-value {font-size: 2.5em; font-weight: bold; margin: 10px 0;}
-.metric-label {font-size: 0.9em; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;}
-</style>
+    <style>
+    .main {padding: 0rem 1rem;}
+    h1 {color: #2c3e50; padding-bottom: 10px;}
+    h2 {color: #34495e; padding-top: 15px; padding-bottom: 10px;}
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .metric-card-green {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    .metric-card-blue {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    .metric-card-orange {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    .metric-value {
+        font-size: 2.5em;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    .metric-label {
+        font-size: 0.9em;
+        opacity: 0.9;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    </style>
 """, unsafe_allow_html=True)
 
-# ----------------------
 # Load data
-# ----------------------
 @st.cache_data
 def load_data():
-    df = pd.read_excel("Combined- Cross Analysis.xlsx")
+    df = pd.read_excel('Combined- Cross Analysis.xlsx')
+    df.columns = [
+        'Role',
+        'Ethnicity',
+        'Disability',
+        'Work_Fulfillment',
+        'Recommendation_Score',
+        'Recognition',
+        'Growth_Potential'
+    ]
     return df
 
 try:
     df = load_data()
 
-    # ----------------------
-    # Column names
-    # ----------------------
-    role_col = "Select the role/department that best describes your current position at Homes First."
-    ethnicity_col = "Which racial or ethnic identity/identities best reflect you. (Select all that apply.)"
-    disability_col = "Do you identify as an individual living with a disability/disabilities and if so, what type of disability/disabilities do you have? (Select all that apply.)"
-    work_col = "How fulfilling and rewarding do you find your work?"
-    rec_col = "How likely are you to recommend Homes First as a good place to work?"
-    recog_col = "Do you feel you get acknowledged and recognized for your contribution  at work?"
-    growth_col = "Do you feel there is potential for growth at Homes First?"
+    # Header
+    st.title("📊 Employee Survey Cross-Analysis Dashboard")
+    st.markdown("### Comparing Employee Groups Across Survey Questions")
 
-    # ----------------------
     # Sidebar filters
-    # ----------------------
     st.sidebar.header("🔍 Filter Data")
-
-    roles = ["All"] + sorted(df[role_col].dropna().unique().tolist())
+    roles = ['All'] + sorted(df['Role'].dropna().unique().tolist())
     selected_role = st.sidebar.selectbox("Role/Department", roles)
 
-    ethnicities = ["All"] + split_multi(df[ethnicity_col])
+    ethnicities = ['All'] + sorted(df['Ethnicity'].dropna().unique().tolist())
     selected_ethnicity = st.sidebar.selectbox("Ethnicity", ethnicities)
 
-    disabilities = ["All"] + split_multi(df[disability_col])
-    selected_disability = st.sidebar.selectbox("Disability", disabilities)
-
     filtered_df = df.copy()
-    if selected_role != "All":
-        filtered_df = filtered_df[filtered_df[role_col] == selected_role]
-    if selected_ethnicity != "All":
-        filtered_df = filtered_df[
-            filtered_df[ethnicity_col].astype(str).str.contains(selected_ethnicity, na=False)
-        ]
-    if selected_disability != "All":
-        filtered_df = filtered_df[
-            filtered_df[disability_col].astype(str).str.contains(selected_disability, na=False)
-        ]
+    if selected_role != 'All':
+        filtered_df = filtered_df[filtered_df['Role'] == selected_role]
+    if selected_ethnicity != 'All':
+        filtered_df = filtered_df[filtered_df['Ethnicity'] == selected_ethnicity]
 
     total = len(filtered_df)
 
-    # ----------------------
-    # Title & key metrics
-    # ----------------------
-    st.title("📊 Employee Survey Cross-Analysis Dashboard")
-    st.markdown(
-        "Explore how different employee groups respond across key survey questions such as recommendation, recognition, and growth.[file:21]"
-    )
-
+    # =====================
+    # Key metrics
+    # =====================
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown(
-            f"<div class='metric-card'><div class='metric-label'>Total Responses</div>"
-            f"<div class='metric-value'>{total}</div></div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Total Responses</div>
+                <div class="metric-value">{total}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
     with col2:
-        avg_score = filtered_df[rec_col].mean() if total > 0 else 0
-        st.markdown(
-            f"<div class='metric-card metric-card-blue'><div class='metric-label'>Avg Recommendation</div>"
-            f"<div class='metric-value'>{avg_score:.1f}/10</div></div>",
-            unsafe_allow_html=True,
-        )
+        avg_score = filtered_df['Recommendation_Score'].mean() if total > 0 else 0
+        st.markdown(f"""
+            <div class="metric-card metric-card-blue">
+                <div class="metric-label">Avg Recommendation</div>
+                <div class="metric-value">{avg_score:.1f}/10</div>
+            </div>
+        """, unsafe_allow_html=True)
 
     with col3:
-        promoters = len(filtered_df[filtered_df[rec_col] >= 9]) if total > 0 else 0
-        detractors = len(filtered_df[filtered_df[rec_col] <= 6]) if total > 0 else 0
-        nps = ((promoters - detractors) / total * 100) if total > 0 else 0
-        nps_color = (
-            "metric-card-green" if nps > 20
-            else "metric-card-orange" if nps > 0
-            else "metric-card"
-        )
-        st.markdown(
-            f"<div class='metric-card {nps_color}'><div class='metric-label'>NPS Score</div>"
-            f"<div class='metric-value'>{nps:.0f}</div></div>",
-            unsafe_allow_html=True,
-        )
+        if total > 0:
+            promoters = len(filtered_df[filtered_df['Recommendation_Score'] >= 9])
+            detractors = len(filtered_df[filtered_df['Recommendation_Score'] <= 6])
+            nps = (promoters - detractors) / total * 100
+        else:
+            promoters = detractors = nps = 0
+
+        nps_color = "metric-card-green" if nps > 20 else "metric-card-orange" if nps > 0 else "metric-card"
+        st.markdown(f"""
+            <div class="metric-card {nps_color}">
+                <div class="metric-label">NPS Score</div>
+                <div class="metric-value">{nps:.0f}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
     with col4:
-        fulfilled = (
-            len(
-                filtered_df[
-                    filtered_df[work_col]
-                    .astype(str)
-                    .str.contains("extremely", case=False, na=False)
-                ]
-            )
-            if total > 0
-            else 0
-        )
-        pct = (fulfilled / total * 100) if total > 0 else 0
-        st.markdown(
-            f"<div class='metric-card metric-card-green'><div class='metric-label'>Highly Fulfilled</div>"
-            f"<div class='metric-value'>{pct:.0f}%</div></div>",
-            unsafe_allow_html=True,
-        )
+        if total > 0:
+            fulfilled = len(filtered_df[
+                filtered_df['Work_Fulfillment'].astype(str).str.contains('extremely', case=False, na=False)
+            ])
+            pct = fulfilled / total * 100
+        else:
+            pct = 0
+        st.markdown(f"""
+            <div class="metric-card metric-card-green">
+                <div class="metric-label">Highly Fulfilled</div>
+                <div class="metric-value">{pct:.0f}%</div>
+            </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # ----------------------
-    # Recommendation behaviour
-    # ----------------------
-    st.header("Recommendation behaviour")
-    st.caption(
-        "Use horizontal bars and stacked bars to show the 0–10 distribution and NPS mix clearly.[file:21]"
-    )
+    # =====================
+    # SECTION 1 – Recommendation score
+    # =====================
+    st.markdown("## 🎯 Recommendation Score Across Groups")
 
-    # 1) Horizontal bar: recommendation score distribution (0–10)
-    if total > 0 and filtered_df[rec_col].notna().any():
+    if total > 0 and filtered_df['Recommendation_Score'].notna().any():
+        # 1A. Horizontal bar: distribution 0–10
         rec_dist = (
-            filtered_df[rec_col]
+            filtered_df['Recommendation_Score']
             .dropna()
             .astype(int)
             .value_counts()
             .sort_index()
             .reset_index()
         )
-        rec_dist.columns = ["Score", "Count"]
-        rec_dist["Group"] = pd.cut(
-            rec_dist["Score"],
+        rec_dist.columns = ['Score', 'Count']
+        rec_dist['NPS_Group'] = pd.cut(
+            rec_dist['Score'],
             bins=[-1, 6, 8, 10],
-            labels=["Detractor (0–6)", "Passive (7–8)", "Promoter (9–10)"],
+            labels=['Detractor (0–6)', 'Passive (7–8)', 'Promoter (9–10)']
         )
 
-        st.subheader("Recommendation score distribution (horizontal)")
-        st.caption(
-            "Horizontal bar chart of scores from 0–10, colored by NPS group.[file:21]"
+        col_rec1, col_rec2 = st.columns(2)
+
+        with col_rec1:
+            fig_rec_dist = px.bar(
+                rec_dist,
+                y='Score',
+                x='Count',
+                color='NPS_Group',
+                orientation='h',
+                color_discrete_map={
+                    'Detractor (0–6)': '#d73027',
+                    'Passive (7–8)': '#fee08b',
+                    'Promoter (9–10)': '#1a9850'
+                },
+                labels={'Count': 'Number of responses'},
+                title='Recommendation Score Distribution (0–10)'
+            )
+            fig_rec_dist.update_layout(
+                margin=dict(l=80, r=40, t=60, b=40),
+                showlegend=True
+            )
+            st.plotly_chart(fig_rec_dist, use_container_width=True)
+
+        with col_rec2:
+            # Donut: overall NPS mix
+            nps_mix = rec_dist.groupby('NPS_Group')['Count'].sum().reset_index()
+            nps_mix = nps_mix[nps_mix['NPS_Group'].notna()]
+            fig_nps_donut = px.pie(
+                nps_mix,
+                names='NPS_Group',
+                values='Count',
+                hole=0.5,
+                color='NPS_Group',
+                color_discrete_map={
+                    'Detractor (0–6)': '#d73027',
+                    'Passive (7–8)': '#fee08b',
+                    'Promoter (9–10)': '#1a9850'
+                },
+                title='Overall NPS Mix'
+            )
+            fig_nps_donut.update_traces(textposition="inside", textinfo="percent+label")
+            fig_nps_donut.update_layout(margin=dict(l=40, r=40, t=60, b=40))
+            st.plotly_chart(fig_nps_donut, use_container_width=True)
+
+        # 1B. Horizontal stacked bar: NPS by Role (Top 8 roles)
+        st.markdown("### NPS Segments by Role")
+
+        tmp = filtered_df[['Role', 'Recommendation_Score']].dropna().copy()
+        tmp['NPS_Group'] = pd.cut(
+            tmp['Recommendation_Score'].astype(int),
+            bins=[-1, 6, 8, 10],
+            labels=['Detractor (0–6)', 'Passive (7–8)', 'Promoter (9–10)']
         )
 
-        fig_rec_dist = px.bar(
-            rec_dist,
-            y="Score",
-            x="Count",
-            color="Group",
-            orientation="h",
+        top_roles = tmp['Role'].value_counts().head(8).index
+        tmp_top = tmp[tmp['Role'].isin(top_roles)]
+
+        nps_ct = pd.crosstab(tmp_top['Role'], tmp_top['NPS_Group'])
+        nps_prop = nps_ct.div(nps_ct.sum(axis=1), axis=0).reset_index()
+        nps_long = nps_prop.melt(id_vars='Role', var_name='NPS_Group', value_name='Percent')
+
+        fig_nps_role = px.bar(
+            nps_long,
+            x='Percent',
+            y='Role',
+            color='NPS_Group',
+            orientation='h',
+            barmode='stack',
+            labels={'Percent': 'Share of respondents'},
             color_discrete_map={
-                "Detractor (0–6)": "#d73027",
-                "Passive (7–8)": "#fee08b",
-                "Promoter (9–10)": "#1a9850",
+                'Detractor (0–6)': '#d73027',
+                'Passive (7–8)': '#fee08b',
+                'Promoter (9–10)': '#1a9850'
             },
-            labels={"Count": "Number of responses"},
-            template=PLOTLY_TEMPLATE,
+            title='NPS Segments by Role (Top 8 Roles)'
         )
-        fig_rec_dist.update_layout(margin=dict(l=80, r=40, t=60, b=40))
-        st.plotly_chart(fig_rec_dist, use_container_width=True)
-
-        # 2) Donut chart for overall NPS mix
-        st.subheader("Overall NPS mix (donut)")
-        st.caption("Shows the share of detractors, passives, and promoters among all filtered responses.[file:21]")
-
-        nps_mix = rec_dist.groupby("Group")["Count"].sum().reset_index()
-        nps_mix = nps_mix[nps_mix["Group"].notna()]
-
-        fig_nps_donut = px.pie(
-            nps_mix,
-            names="Group",
-            values="Count",
-            hole=0.5,
-            color="Group",
-            color_discrete_map={
-                "Detractor (0–6)": "#d73027",
-                "Passive (7–8)": "#fee08b",
-                "Promoter (9–10)": "#1a9850",
-            },
-            template=PLOTLY_TEMPLATE,
+        fig_nps_role.update_layout(
+            xaxis_tickformat=".0%",
+            margin=dict(l=250, r=40, t=60, b=40),
+            yaxis=dict(automargin=True)
         )
-        fig_nps_donut.update_traces(textposition="inside", textinfo="percent+label")
-        fig_nps_donut.update_layout(
-            showlegend=True,
-            margin=dict(l=40, r=40, t=60, b=40),
-        )
-        st.plotly_chart(fig_nps_donut, use_container_width=False)
+        st.plotly_chart(fig_nps_role, use_container_width=True)
+
     else:
         st.info("No recommendation data for the current filters.")
 
-    # 3) Stacked horizontal bar: NPS segments by role
-    if total > 0 and filtered_df[role_col].notna().any() and filtered_df[rec_col].notna().any():
-        tmp = filtered_df[[role_col, rec_col]].dropna().copy()
-        tmp["nps_group"] = pd.cut(
-            tmp[rec_col].astype(int),
-            bins=[-1, 6, 8, 10],
-            labels=["Detractor (0–6)", "Passive (7–8)", "Promoter (9–10)"],
+    st.markdown("---")
+
+    # =====================
+    # SECTION 2 – Work fulfillment (100% stacked bar)
+    # =====================
+    st.markdown("## 💼 Work Fulfillment Across Roles")
+
+    if total > 0 and filtered_df['Work_Fulfillment'].notna().any():
+        top_roles_f = df['Role'].value_counts().head(8).index
+        role_fulfill = df[df['Role'].isin(top_roles_f)].copy()
+
+        fulfill_cross = pd.crosstab(
+            role_fulfill['Role'],
+            role_fulfill['Work_Fulfillment'],
+            normalize='index'
+        ) * 100
+
+        fulfill_long = fulfill_cross.reset_index().melt(
+            id_vars='Role',
+            var_name='Fulfillment_Level',
+            value_name='Percent'
         )
 
-        st.subheader("NPS segments by role (stacked bar)")
-        st.caption(
-            "100% stacked horizontal bar shows the share of detractors, passives, and promoters in each role.[file:21]"
+        fig_fulfill = px.bar(
+            fulfill_long,
+            x='Percent',
+            y='Role',
+            color='Fulfillment_Level',
+            orientation='h',
+            barmode='stack',
+            title="Work Fulfillment Distribution by Role (%)",
+            labels={'Percent': 'Percentage'}
         )
-
-        nps_ct = pd.crosstab(tmp[role_col], tmp["nps_group"])
-        nps_prop = nps_ct.div(nps_ct.sum(axis=1), axis=0).reset_index()
-        nps_long = nps_prop.melt(
-            id_vars=role_col, var_name="NPS group", value_name="Percent"
-        )
-
-        fig_nps_stack = px.bar(
-            nps_long,
-            x="Percent",
-            y=role_col,
-            color="NPS group",
-            orientation="h",
-            barmode="stack",
-            labels={"Percent": "Share of respondents"},
-            color_discrete_map={
-                "Detractor (0–6)": "#d73027",
-                "Passive (7–8)": "#fee08b",
-                "Promoter (9–10)": "#1a9850",
-            },
-            template=PLOTLY_TEMPLATE,
-        )
-        fig_nps_stack.update_layout(
+        fig_fulfill.update_layout(
             xaxis_tickformat=".0%",
             margin=dict(l=250, r=40, t=60, b=40),
             yaxis=dict(automargin=True),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="center", x=0.5)
         )
-        st.plotly_chart(fig_nps_stack, use_container_width=True)
-
-    st.markdown("---")
-
-    # ----------------------
-    # Ethnicity & recommendation (horizontal bar)
-    # ----------------------
-    st.header("Recommendation by ethnic identity")
-    st.caption(
-        "Horizontal bar for top ethnic identities by average recommendation; avoids overcrowding and keeps labels legible.[file:21]"
-    )
-
-    if total > 0 and filtered_df[ethnicity_col].notna().any() and filtered_df[rec_col].notna().any():
-        eth_exploded = filtered_df[[ethnicity_col, rec_col]].dropna().copy()
-        eth_exploded = eth_exploded.assign(
-            ethnicity_split=eth_exploded[ethnicity_col].astype(str).str.split(",")
-        ).explode("ethnicity_split")
-        eth_exploded["ethnicity_split"] = eth_exploded["ethnicity_split"].str.strip()
-        eth_exploded = eth_exploded[eth_exploded["ethnicity_split"] != ""]
-
-        eth_avg = (
-            eth_exploded.groupby("ethnicity_split")[rec_col]
-            .mean()
-            .reset_index()
-        )
-        counts = eth_exploded["ethnicity_split"].value_counts().rename("Count").reset_index()
-        counts.columns = ["ethnicity_split", "Count"]
-
-        eth_avg = eth_avg.merge(counts, on="ethnicity_split")
-        eth_avg = eth_avg[eth_avg["Count"] >= 3]  # filter for reasonable N
-        eth_top = (
-            eth_avg.sort_values("Count", ascending=False)
-            .head(10)
-            .sort_values(rec_col, ascending=True)
-        )
-
-        eth_top["eth_wrapped"] = eth_top["ethnicity_split"].apply(lambda x: wrap_label(x, 30))
-
-        st.subheader("Top 10 ethnic identities by recommendation")
-        st.caption(
-            "Average recommendation score (0–10) for the most common identities (sample ≥ 3).[file:21]"
-        )
-
-        fig_eth = px.bar(
-            eth_top,
-            x=rec_col,
-            y="eth_wrapped",
-            orientation="h",
-            text=rec_col,
-            color_discrete_sequence=SECONDARY_SEQ,
-            template=PLOTLY_TEMPLATE,
-        )
-        fig_eth.update_traces(texttemplate="%{text:.1f}", textposition="outside")
-        fig_eth.update_layout(
-            margin=dict(l=250, r=40, t=60, b=40),
-            yaxis=dict(automargin=True),
-            xaxis_title="Average recommendation (0–10)",
-            yaxis_title="Ethnic identity",
-        )
-        st.plotly_chart(fig_eth, use_container_width=True)
+        st.plotly_chart(fig_fulfill, use_container_width=True)
     else:
-        st.info("Not enough ethnicity and recommendation data to show a stable chart for the selected filters.")
+        st.info("No work fulfillment data for the current filters.")
 
     st.markdown("---")
 
-    # ----------------------
-    # Recognition & growth: 100% stacked horizontal bars (Likert)
-    # ----------------------
-    st.header("Recognition and growth perceptions")
-    st.caption(
-        "Recognition and growth are Likert questions, shown as 100% stacked horizontal bars by role.[file:21]"
-    )
+    # =====================
+    # SECTION 3 – Recognition & Growth (Likert-style stacked bars)
+    # =====================
+    st.markdown("## 🌟 Recognition & Growth Sentiment Across Roles")
 
-    recog_order = [
-        "I don't feel recognized and acknowledged but I prefer it that way",
-        "I don't feel recognized and acknowledged and would prefer staff successes to be highlighted",
-        "I do find myself being recognized and acknowledged, but it's rare given the contributions I make",
-        "I somewhat feel recognized and acknowledged",
-        "Yes, I do feel recognized and acknowledged",
-    ]
+    # Recognition mapping to shorter labels
+    recog_map = {
+        "Yes, I do feel recognized and acknowledged": "Yes",
+        "I somewhat feel recognized and acknowledged": "Somewhat",
+        "I do find myself being recognized and acknowledged, but it's rare given the contributions I make": "Rare",
+        "I don't feel recognized and acknowledged and would prefer staff successes to be highlighted more frequently": "No (Want more)",
+        "I don't feel recognized and acknowledged but I prefer it that way": "No (Prefer)"
+    }
 
-    growth_order = [
-        "I am not interested in career growth and prefer to remain in my current role",
-        "Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization",
-        "There is very little potential to grow at Homes First",
-        "There is some potential to grow and I hope to advance my career with Homes First",
-        "Yes, I do feel there is potential to grow at Homes First",
-    ]
+    growth_map = {
+        "Yes, I do feel there is potential to grow and I hope to advance my career with Homes First": "Yes",
+        "There is some potential to grow and I hope to advance my career with Homes First": "Some",
+        "Potential to grow seems limited at Homes First and I will likely need to advance my career with another organization": "Limited",
+        "There is very little potential to grow although I would like to advance my career with Homes First": "Very limited",
+        "I am not interested in career growth and prefer to remain in my current role": "Not interested"
+    }
 
-    col_left, col_right = st.columns(2)
+    col_rg1, col_rg2 = st.columns(2)
 
-    # Recognition stacked bar
-    with col_left:
-        st.subheader("Recognition (Likert) by role")
-        st.caption(
-            "Each bar sums to 100% and shows how recognized staff feel within each role.[file:21]"
-        )
+    # 3A. Recognition distribution by role – 100% stacked bar
+    with col_rg1:
+        st.markdown("### Recognition by Role")
 
-        if total > 0 and filtered_df[role_col].notna().any() and filtered_df[recog_col].notna().any():
-            rec = filtered_df[[role_col, recog_col]].dropna().copy()
-            rec[recog_col] = pd.Categorical(rec[recog_col], categories=recog_order, ordered=True)
+        if df['Recognition'].notna().any():
+            df_recog = df.copy()
+            df_recog['Recognition_Short'] = df_recog['Recognition'].map(recog_map).fillna('Other')
 
-            rec_ct = pd.crosstab(rec[role_col], rec[recog_col])
-            present_rec_cols = [c for c in recog_order if c in rec_ct.columns]
-            rec_ct = rec_ct[present_rec_cols]
+            roles_rg = df_recog['Role'].value_counts().head(8).index
+            role_recog = df_recog[df_recog['Role'].isin(roles_rg)]
 
-            rec_prop = rec_ct.div(rec_ct.sum(axis=1), axis=0).reset_index()
-            rec_long = rec_prop.melt(
-                id_vars=role_col, var_name="Recognition", value_name="Percent"
+            recog_cross = pd.crosstab(
+                role_recog['Role'],
+                role_recog['Recognition_Short'],
+                normalize='index'
+            ) * 100
+
+            recog_long = recog_cross.reset_index().melt(
+                id_vars='Role',
+                var_name='Recognition_Level',
+                value_name='Percent'
             )
 
-            fig_rec_likert = px.bar(
-                rec_long,
-                x="Percent",
-                y=role_col,
-                color="Recognition",
-                orientation="h",
-                barmode="stack",
-                labels={"Percent": "Share of respondents"},
-                color_discrete_sequence=px.colors.sequential.Viridis,
-                template=PLOTLY_TEMPLATE,
+            fig_recog = px.bar(
+                recog_long,
+                x='Percent',
+                y='Role',
+                color='Recognition_Level',
+                orientation='h',
+                barmode='stack',
+                labels={'Percent': 'Percentage'},
+                title="Recognition Distribution by Role (%)"
             )
-            fig_rec_likert.update_layout(
+            fig_recog.update_layout(
                 xaxis_tickformat=".0%",
                 margin=dict(l=250, r=40, t=60, b=40),
                 yaxis=dict(automargin=True),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                            xanchor="center", x=0.5)
             )
-            st.plotly_chart(fig_rec_likert, use_container_width=True)
+            st.plotly_chart(fig_recog, use_container_width=True)
         else:
-            st.info("No recognition data for the current filters.")
+            st.info("No recognition data available.")
 
-    # Growth stacked bar
-    with col_right:
-        st.subheader("Growth potential (Likert) by role")
-        st.caption(
-            "Each bar sums to 100% and shows how staff perceive growth opportunities in each role.[file:21]"
-        )
+    # 3B. Growth perception by role – 100% stacked bar
+    with col_rg2:
+        st.markdown("### Growth Potential by Role")
 
-        if total > 0 and filtered_df[role_col].notna().any() and filtered_df[growth_col].notna().any():
-            gr = filtered_df[[role_col, growth_col]].dropna().copy()
-            gr[growth_col] = pd.Categorical(gr[growth_col], categories=growth_order, ordered=True)
+        if df['Growth_Potential'].notna().any():
+            df_growth = df.copy()
+            df_growth['Growth_Short'] = df_growth['Growth_Potential'].map(growth_map).fillna('Other')
 
-            gr_ct = pd.crosstab(gr[role_col], gr[growth_col])
-            present_gr_cols = [c for c in growth_order if c in gr_ct.columns]
-            gr_ct = gr_ct[present_gr_cols]
+            roles_gr = df_growth['Role'].value_counts().head(8).index
+            role_growth = df_growth[df_growth['Role'].isin(roles_gr)]
 
-            gr_prop = gr_ct.div(gr_ct.sum(axis=1), axis=0).reset_index()
-            gr_long = gr_prop.melt(
-                id_vars=role_col, var_name="Growth perception", value_name="Percent"
+            growth_cross = pd.crosstab(
+                role_growth['Role'],
+                role_growth['Growth_Short'],
+                normalize='index'
+            ) * 100
+
+            growth_long = growth_cross.reset_index().melt(
+                id_vars='Role',
+                var_name='Growth_Level',
+                value_name='Percent'
             )
 
-            fig_gr_likert = px.bar(
-                gr_long,
-                x="Percent",
-                y=role_col,
-                color="Growth perception",
-                orientation="h",
-                barmode="stack",
-                labels={"Percent": "Share of respondents"},
-                color_discrete_sequence=px.colors.sequential.Plasma,
-                template=PLOTLY_TEMPLATE,
+            fig_growth = px.bar(
+                growth_long,
+                x='Percent',
+                y='Role',
+                color='Growth_Level',
+                orientation='h',
+                barmode='stack',
+                labels={'Percent': 'Percentage'},
+                title="Growth Potential Distribution by Role (%)"
             )
-            fig_gr_likert.update_layout(
+            fig_growth.update_layout(
                 xaxis_tickformat=".0%",
                 margin=dict(l=250, r=40, t=60, b=40),
                 yaxis=dict(automargin=True),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                            xanchor="center", x=0.5)
             )
-            st.plotly_chart(fig_gr_likert, use_container_width=True)
+            st.plotly_chart(fig_growth, use_container_width=True)
         else:
-            st.info("No growth data for the current filters.")
+            st.info("No growth perception data available.")
+
+    st.markdown("---")
+
+    # =====================
+    # SECTION 4 – Disability comparison (simple horizontal bars)
+    # =====================
+    st.markdown("## ♿ Disability Status – Key Metrics")
+
+    if df['Disability'].notna().any():
+        dis_summary = []
+        dis_values = df['Disability'].value_counts().head(6).index
+
+        for dis in dis_values:
+            sub = df[df['Disability'] == dis]
+            if len(sub) < 3:
+                continue
+
+            dis_short = (
+                'No disability' if 'do not identify' in dis
+                else 'Mental health' if 'Mental health' in dis
+                else 'Mobility' if 'Mobility' in dis
+                else 'Other' if 'Other' in dis
+                else dis[:25]
+            )
+
+            avg_score = sub['Recommendation_Score'].mean()
+            fulfilled_pct = (
+                len(sub[sub['Work_Fulfillment'].astype(str).str.contains('extremely', case=False, na=False)])
+                / len(sub) * 100
+            )
+            recognized_pct = (
+                len(sub[sub['Recognition'].astype(str).str.contains('Yes, I do feel recognized', na=False)])
+                / len(sub) * 100
+            )
+            growth_pct = (
+                len(sub[sub['Growth_Potential'].astype(str).str.contains('Yes, I do feel there is potential', na=False)])
+                / len(sub) * 100
+            )
+
+            dis_summary.append({
+                'Disability_Short': dis_short,
+                'Avg_Recommendation': avg_score,
+                'Highly_Fulfilled_%': fulfilled_pct,
+                'Feel_Recognized_%': recognized_pct,
+                'See_Growth_%': growth_pct,
+                'Count': len(sub)
+            })
+
+        if dis_summary:
+            dis_df = pd.DataFrame(dis_summary).sort_values('Avg_Recommendation', ascending=True)
+
+            st.markdown("### Average Recommendation Score by Disability Status")
+            fig_dis_score = px.bar(
+                dis_df,
+                x='Avg_Recommendation',
+                y='Disability_Short',
+                orientation='h',
+                text='Avg_Recommendation',
+                title='Average Recommendation Score by Disability Status'
+            )
+            fig_dis_score.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+            fig_dis_score.update_layout(
+                xaxis_range=[0, 10.5],
+                margin=dict(l=200, r=40, t=60, b=40),
+                yaxis=dict(automargin=True)
+            )
+            st.plotly_chart(fig_dis_score, use_container_width=True)
+
+            st.markdown("### Key Experience Metrics by Disability Status")
+            # melt the percentages into long form for a stacked horizontal bar
+            perc_cols = ['Highly_Fulfilled_%', 'Feel_Recognized_%', 'See_Growth_%']
+            dis_long = dis_df.melt(
+                id_vars='Disability_Short',
+                value_vars=perc_cols,
+                var_name='Metric',
+                value_name='Percent'
+            )
+
+            metric_labels = {
+                'Highly_Fulfilled_%': 'Highly fulfilled',
+                'Feel_Recognized_%': 'Feel recognized',
+                'See_Growth_%': 'See growth potential'
+            }
+            dis_long['Metric_Label'] = dis_long['Metric'].map(metric_labels)
+
+            fig_dis_perc = px.bar(
+                dis_long,
+                x='Percent',
+                y='Disability_Short',
+                color='Metric_Label',
+                orientation='h',
+                barmode='group',
+                title='Experience Metrics by Disability Status',
+                labels={'Percent': 'Percentage'}
+            )
+            fig_dis_perc.update_layout(
+                xaxis_tickformat=".0f",
+                margin=dict(l=200, r=40, t=60, b=40),
+                yaxis=dict(automargin=True),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                            xanchor="center", x=0.5)
+            )
+            st.plotly_chart(fig_dis_perc, use_container_width=True)
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Cross-Analysis Dashboard – Bar & Donut view**")
+    st.sidebar.markdown("**Cross-Analysis Dashboard – Bar & Donut layout**")
 
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
