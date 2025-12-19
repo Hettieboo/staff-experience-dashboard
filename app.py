@@ -199,132 +199,161 @@ with tab2:
 # ------------------- TAB 3: CORRELATION ANALYSIS (NEW VERSION) -------------------
 with tab3:
     st.markdown("### Comprehensive Cross-Analysis: All Groups × All Questions")
-    st.markdown("*Shows the percentage of positive responses for each role across all survey questions*")
+    st.markdown("*Diverging bars show positive (right) vs negative (left) sentiment for each role*")
     
     # Get top roles
-    top_roles = df['Role'].value_counts().head(10).index.tolist()
+    top_roles = df['Role'].value_counts().head(8).index.tolist()
     df_cross = df[df['Role'].isin(top_roles)].copy()
     df_cross['Role_Short'] = df_cross['Role'].apply(shorten_role)
     
-    # Calculate positive response percentages for each question
-    def calc_positive_pct(group_df, column, positive_keywords):
-        """Calculate percentage of positive responses"""
-        total = len(group_df)
-        if total == 0:
-            return 0
-        positive = sum(group_df[column].str.contains('|'.join(positive_keywords), case=False, na=False))
-        return (positive / total) * 100
-    
-    # Define what counts as "positive" for each question
-    fulfillment_positive = ['extremely fulfilling']
-    recognition_positive = ['Yes, I do feel recognized']
-    growth_positive = ['Yes, I do feel there is potential']
-    
-    # Build the heatmap data
-    heatmap_data = []
-    role_labels = []
-    
-    for role in sorted(df_cross['Role_Short'].unique()):
-        role_data = df_cross[df_cross['Role_Short'] == role]
+    # Function to create diverging bar for each question
+    def create_diverging_bar(df, question_col, title, positive_keywords, neutral_keywords, negative_keywords):
+        """Create diverging stacked bar chart"""
+        role_data = []
+        roles = sorted(df['Role_Short'].unique())
         
-        row = [
-            calc_positive_pct(role_data, 'Work_Fulfillment', fulfillment_positive),
-            calc_positive_pct(role_data, 'Work_Fulfillment', ['fulfilling and rewarding in some parts']),
-            calc_positive_pct(role_data, 'Work_Fulfillment', ['somewhat fulfilling']),
-            calc_positive_pct(role_data, 'Recognition', recognition_positive),
-            calc_positive_pct(role_data, 'Recognition', ['somewhat feel recognized']),
-            calc_positive_pct(role_data, 'Growth_Potential', growth_positive),
-            calc_positive_pct(role_data, 'Growth_Potential', ['some potential to grow']),
-            role_data['Recommendation_Score'].mean()
-        ]
-        
-        heatmap_data.append(row)
-        role_labels.append(role)
-    
-    # Question labels - clear and simple
-    question_labels = [
-        'Work: Extremely Fulfilling',
-        'Work: Mixed Fulfillment',
-        'Work: Somewhat Fulfilling',
-        'Recognition: Yes, Feel Recognized',
-        'Recognition: Somewhat',
-        'Growth: Yes, Potential to Grow',
-        'Growth: Some Potential',
-        'Avg Recommendation Score (0-10)'
-    ]
-    
-    # Create heatmap
-    heatmap_array = np.array(heatmap_data)
-    
-    # Normalize the last column (Recommendation Score) to 0-100 scale for color consistency
-    heatmap_display = heatmap_array.copy()
-    heatmap_display[:, -1] = heatmap_display[:, -1] * 10  # Scale 0-10 to 0-100
-    
-    # Create text labels with better contrast
-    text_labels = []
-    for i, row in enumerate(heatmap_array):
-        text_row = []
-        for j, val in enumerate(row):
-            # Determine text color based on background color intensity
-            bg_value = heatmap_display[i, j]
-            # Use black text for light backgrounds (yellow/light green), white for dark
-            text_color = 'black' if 40 < bg_value < 75 else 'white'
+        for role in roles:
+            role_subset = df[df['Role_Short'] == role]
+            total = len(role_subset)
             
-            if j == len(row) - 1:  # Last column is score
-                text_row.append(f'{val:.1f}')
-            else:  # Others are percentages
-                text_row.append(f'{val:.0f}%')
-        text_labels.append(text_row)
+            if total == 0:
+                continue
+            
+            # Calculate percentages
+            positive = sum(role_subset[question_col].str.contains('|'.join(positive_keywords), case=False, na=False)) / total * 100
+            neutral = sum(role_subset[question_col].str.contains('|'.join(neutral_keywords), case=False, na=False)) / total * 100
+            negative = sum(role_subset[question_col].str.contains('|'.join(negative_keywords), case=False, na=False)) / total * 100
+            
+            role_data.append({
+                'Role': role,
+                'Positive': positive,
+                'Neutral': neutral,
+                'Negative': negative
+            })
+        
+        df_chart = pd.DataFrame(role_data)
+        
+        fig = go.Figure()
+        
+        # Negative bars (left side)
+        fig.add_trace(go.Bar(
+            y=df_chart['Role'],
+            x=-df_chart['Negative'],
+            name='Negative',
+            orientation='h',
+            marker=dict(color='#e74c3c'),
+            text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Negative']],
+            textposition='inside',
+            textfont=dict(color='white', size=11),
+            hovertemplate='<b>%{y}</b><br>Negative: %{x:.1f}%<extra></extra>'
+        ))
+        
+        # Neutral bars (center)
+        fig.add_trace(go.Bar(
+            y=df_chart['Role'],
+            x=df_chart['Neutral'],
+            name='Neutral',
+            orientation='h',
+            marker=dict(color='#f39c12'),
+            text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Neutral']],
+            textposition='inside',
+            textfont=dict(color='white', size=11),
+            hovertemplate='<b>%{y}</b><br>Neutral: %{x:.1f}%<extra></extra>'
+        ))
+        
+        # Positive bars (right side)
+        fig.add_trace(go.Bar(
+            y=df_chart['Role'],
+            x=df_chart['Positive'],
+            name='Positive',
+            orientation='h',
+            marker=dict(color='#27ae60'),
+            text=[f'{val:.0f}%' if val > 5 else '' for val in df_chart['Positive']],
+            textposition='inside',
+            textfont=dict(color='white', size=11),
+            hovertemplate='<b>%{y}</b><br>Positive: %{x:.1f}%<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            barmode='relative',
+            title=dict(text=title, font=dict(size=16, color='#2c3e50')),
+            xaxis=dict(
+                title='← Negative    |    Positive →',
+                range=[-100, 100],
+                tickvals=[-100, -75, -50, -25, 0, 25, 50, 75, 100],
+                ticktext=['100%', '75%', '50%', '25%', '0', '25%', '50%', '75%', '100%'],
+                showline=True,
+                linewidth=2,
+                linecolor='#34495e',
+                showgrid=True,
+                gridcolor='#ecf0f1',
+                zeroline=True,
+                zerolinewidth=3,
+                zerolinecolor='#34495e'
+            ),
+            yaxis=dict(
+                title='Role / Department',
+                showline=True,
+                linewidth=2,
+                linecolor='#34495e',
+                showgrid=False
+            ),
+            height=500,
+            margin=dict(l=200, r=50, t=80, b=80),
+            legend=dict(
+                orientation='h',
+                yanchor='bottom',
+                y=1.02,
+                xanchor='center',
+                x=0.5,
+                bgcolor='rgba(255,255,255,0.9)',
+                bordercolor='#34495e',
+                borderwidth=1
+            ),
+            plot_bgcolor='white',
+            paper_bgcolor='#f8f9fa'
+        )
+        
+        fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+        fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+        
+        return fig
     
-    # Create custom text colors array
-    text_colors = []
-    for i in range(len(heatmap_display)):
-        color_row = []
-        for j in range(len(heatmap_display[i])):
-            bg_value = heatmap_display[i, j]
-            color_row.append('black' if 40 < bg_value < 75 else 'white')
-        text_colors.append(color_row)
-    
-    fig_cross = go.Figure(data=go.Heatmap(
-        z=heatmap_display,
-        x=question_labels,
-        y=role_labels,
-        colorscale='RdYlGn',
-        text=text_labels,
-        texttemplate='%{text}',
-        textfont={"size": 12},
-        colorbar=dict(
-            title="Response<br>Rate (%)", 
-            len=0.7,
-            tickvals=[0, 25, 50, 75, 100],
-            ticktext=["0%", "25%", "50%", "75%", "100%"]
-        ),
-        hovertemplate='<b>%{y}</b><br>%{x}<br>Value: %{text}<extra></extra>'
-    ))
-    
-    # Manually set text colors for better contrast
-    for i in range(len(text_colors)):
-        for j in range(len(text_colors[i])):
-            fig_cross.add_annotation(
-                x=question_labels[j],
-                y=role_labels[i],
-                text=text_labels[i][j],
-                showarrow=False,
-                font=dict(size=12, color=text_colors[i][j])
-            )
-    
-    fig_cross.update_layout(
-        title="Complete Cross-Analysis: How Each Role Responds to Each Question",
-        xaxis_title='Survey Questions',
-        yaxis_title='Role / Department',
-        height=650,
-        width=1400,
-        margin=dict(l=180, r=80, t=100, b=120),
-        xaxis=dict(tickangle=-25, tickfont=dict(size=11)),
-        yaxis=dict(tickfont=dict(size=11))
+    # Work Fulfillment
+    st.subheader("💼 Work Fulfillment by Role")
+    fig_fulfill = create_diverging_bar(
+        df_cross, 
+        'Work_Fulfillment',
+        'Work Fulfillment Sentiment Balance',
+        positive_keywords=['extremely fulfilling'],
+        neutral_keywords=['somewhat', 'in some parts'],
+        negative_keywords=["don't find the work", "taking steps to change"]
     )
+    st.plotly_chart(fig_fulfill, use_container_width=True)
     
-    st.plotly_chart(fig_cross, use_container_width=True)
+    # Recognition
+    st.subheader("🌟 Recognition by Role")
+    fig_recog = create_diverging_bar(
+        df_cross, 
+        'Recognition',
+        'Recognition Sentiment Balance',
+        positive_keywords=['Yes, I do feel recognized'],
+        neutral_keywords=['somewhat', 'rare', 'prefer it that way'],
+        negative_keywords=["don't feel recognized and would prefer"]
+    )
+    st.plotly_chart(fig_recog, use_container_width=True)
+    
+    # Growth Potential
+    st.subheader("📈 Growth Potential by Role")
+    fig_growth = create_diverging_bar(
+        df_cross, 
+        'Growth_Potential',
+        'Growth Potential Sentiment Balance',
+        positive_keywords=['Yes, I do feel there is potential'],
+        neutral_keywords=['some potential', 'not interested in career growth'],
+        negative_keywords=['limited', 'very little']
+    )
+    st.plotly_chart(fig_growth, use_container_width=True)
     
     # 🔹 Insights
     st.markdown("### 📝 Key Insights from Cross-Analysis")
@@ -332,6 +361,13 @@ with tab3:
     # Find best and worst performing roles
     avg_scores = df_cross.groupby('Role_Short')['Recommendation_Score'].mean().sort_values(ascending=False)
     
+    st.markdown("**How to Read These Charts:**")
+    st.markdown("- 🟢 **Green (Right)**: Positive responses - employees satisfied")
+    st.markdown("- 🟡 **Yellow (Center)**: Neutral/Mixed responses")
+    st.markdown("- 🔴 **Red (Left)**: Negative responses - employees dissatisfied")
+    st.markdown("- The longer the green bar, the more satisfied that role is")
+    
+    st.markdown("")
     st.markdown("**Highest Satisfaction Roles:**")
     for role in avg_scores.head(3).index:
         score = avg_scores[role]
@@ -344,15 +380,10 @@ with tab3:
         st.markdown(f"- **{role}**: {score:.1f}/10 average recommendation score")
     
     st.markdown("")
-    st.markdown("**How to Read This Chart:**")
-    st.markdown("- 🟢 **Green (50%+)**: Most employees in this role gave positive responses")
-    st.markdown("- 🟡 **Yellow (25-50%)**: Mixed responses from this role")
-    st.markdown("- 🔴 **Red (0-25%)**: Few positive responses - needs immediate attention")
-    st.markdown("")
     st.markdown("**Actionable Recommendations:**")
-    st.markdown("- Focus interventions on roles showing red/yellow across multiple questions")
-    st.markdown("- Roles with high fulfillment but low growth perception may need career development programs")
-    st.markdown("- Roles with low recognition should be prioritized for acknowledgment initiatives")
+    st.markdown("- Roles showing more RED than GREEN need immediate attention")
+    st.markdown("- Focus on roles with consistent negative sentiment across multiple questions")
+    st.markdown("- Use insights to tailor interventions: recognition programs, career development, work redesign")
 
 # ------------------- VARIED CHART TYPES -------------------
 st.markdown("## 🏗 Response Distribution by Role")
