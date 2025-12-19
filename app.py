@@ -146,15 +146,20 @@ st.markdown("---")
 st.markdown("## 📈 Cross-Analysis: Demographics vs. Employee Sentiment")
 tab1, tab2, tab3 = st.tabs(["🎯 Score Comparisons", "🔥 Sentiment Heatmap", "🔗 Correlation Analysis"])
 
-# ----- TAB 2 (Sentiment Heatmap) -----
+# =================== INSIGHTS HELPERS ===================
+# Create a separate copy for insights to avoid NameError
+df_insights = filtered_df.copy()
+df_insights['Role_Short'] = df_insights['Role'].apply(shorten_role)
+
+# ------------------- HEATMAP -------------------
 with tab2:
     st.markdown("### Sentiment Heatmaps: Role × Survey Questions")
     
     def create_sentiment_heatmap(df, question_col, title):
         top_roles = df['Role'].value_counts().head(8).index.tolist()
-        df_filtered = df[df['Role'].isin(top_roles)]
-        df_filtered['Role_Short'] = df_filtered['Role'].apply(shorten_role)
-        cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[question_col], normalize='index')*100
+        df_filtered_local = df[df['Role'].isin(top_roles)]
+        df_filtered_local['Role_Short'] = df_filtered_local['Role'].apply(shorten_role)
+        cross_tab = pd.crosstab(df_filtered_local['Role_Short'], df_filtered_local[question_col], normalize='index')*100
         positive_cols = [col for col in cross_tab.columns if 'extremely' in str(col).lower() or 'yes' in str(col).lower()]
         if positive_cols:
             cross_tab = cross_tab.sort_values(by=positive_cols[0], ascending=True)
@@ -177,27 +182,28 @@ with tab2:
             xaxis=dict(tickangle=-45,tickfont=dict(size=10))
         )
         return fig
-    
+
     st.subheader("Work Fulfillment by Role")
     st.plotly_chart(create_sentiment_heatmap(df, 'Work_Fulfillment', 'Work Fulfillment Distribution by Role'), use_container_width=True)
     st.subheader("Recognition by Role")
     st.plotly_chart(create_sentiment_heatmap(df, 'Recognition', 'Recognition Sentiment by Role'), use_container_width=True)
     st.subheader("Growth Potential by Role")
     st.plotly_chart(create_sentiment_heatmap(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
-    
+
     # 🔹 Heatmap Insights
+    top_roles_positive = df_insights[df_insights['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]['Role_Short'].unique()
     st.markdown("### 📝 Insights & Recommendations")
-    st.markdown("- Positive sentiment is highest among roles: " + ", ".join(df_filtered[df_filtered['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]['Role_Short'].unique()))
+    st.markdown("- Positive sentiment is highest among roles: " + ", ".join(top_roles_positive))
     st.markdown("- Roles showing lower recognition and growth potential should be prioritized for recognition programs or professional development.")
 
-# ----- STACKED BAR CHARTS -----
+# ------------------- STACKED BARS -------------------
 st.markdown("## 🏗 Stacked Response Distribution by Role")
 def create_stacked_bar(df, value_col, title):
     role_counts = df['Role'].value_counts().head(8)
     top_roles = role_counts.index.tolist()
-    df_filtered = df[df['Role'].isin(top_roles)]
-    df_filtered['Role_Short'] = df_filtered['Role'].apply(shorten_role)
-    cross_tab = pd.crosstab(df_filtered['Role_Short'], df_filtered[value_col], normalize='index')*100
+    df_filtered_local = df[df['Role'].isin(top_roles)]
+    df_filtered_local['Role_Short'] = df_filtered_local['Role'].apply(shorten_role)
+    cross_tab = pd.crosstab(df_filtered_local['Role_Short'], df_filtered_local[value_col], normalize='index')*100
     role_short_order = [shorten_role(r) for r in top_roles]
     cross_tab = cross_tab.reindex(role_short_order)
     max_label_len = max([len(r) for r in cross_tab.index])
@@ -237,24 +243,25 @@ st.plotly_chart(create_stacked_bar(df, 'Recognition', 'Recognition Distribution 
 st.plotly_chart(create_stacked_bar(df, 'Growth_Potential', 'Growth Potential Distribution by Role'), use_container_width=True)
 
 # 🔹 Stacked Bar Insights
+role_scores = df_insights.groupby('Role')['Recommendation_Score'].mean().sort_values()
+extreme_roles = df_insights[df_insights['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]['Role_Short'].unique()
 st.markdown("### 📝 Insights & Recommendations")
-st.markdown("- Roles with highest percentages of 'Extremely' fulfilling responses: " + ", ".join(filtered_df[filtered_df['Work_Fulfillment'].str.contains('extremely', case=False, na=False)]['Role_Short'].unique()))
-role_scores = df.groupby('Role')['Recommendation_Score'].mean().sort_values()
+st.markdown("- Roles with highest percentages of 'Extremely' fulfilling responses: " + ", ".join(extreme_roles))
 st.markdown("- Roles with lowest recommendation scores: " + ", ".join(role_scores.head(3).index))
 st.markdown("- Consider targeted interventions for roles with consistently low scores in Work Fulfillment, Recognition, or Growth Potential.")
 
-# ----- CORRELATION ANALYSIS -----
+# ------------------- CORRELATION ANALYSIS -------------------
 with tab3:
     st.markdown("### Correlation Analysis: Numeric Survey Metrics")
     mapping = {
         'Not at all':1, 'Slightly':2, 'Somewhat':3, 'Moderately':4, 'Extremely':5,
         'No':0, 'Yes':1
     }
-    numeric_df = filtered_df.copy()
+    numeric_df = df_insights.copy()
     for col in ['Work_Fulfillment', 'Recognition', 'Growth_Potential']:
         numeric_df[col+'_Score'] = numeric_df[col].map(lambda x: mapping.get(str(x), np.nan))
     numeric_cols = ['Work_Fulfillment_Score', 'Recognition_Score', 'Growth_Potential_Score', 'Recommendation_Score']
-    corr_matrix = numeric_df[numeric_cols].corr()
+    corr_matrix = numeric_df[numeric_cols].corr().dropna()
     fig_corr = px.imshow(
         corr_matrix,
         text_auto=True,
