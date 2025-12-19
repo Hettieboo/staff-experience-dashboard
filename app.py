@@ -404,21 +404,15 @@ def create_stacked_bar(df, value_col, title, orientation='v'):
         # Shorten legend labels for readability
         short_label = str(col)[:45] + '...' if len(str(col)) > 45 else str(col)
         
-        if orientation == 'v':
-            x_vals, y_vals = cross_tab.index, cross_tab[col]
-            textposition = 'inside'
-        else:
-            x_vals, y_vals = cross_tab[col], cross_tab.index
-            textposition = 'inside'
-            
         text_values = [f'{v:.1f}%' if v>5 else '' for v in cross_tab[col]]
+        
         fig.add_trace(go.Bar(
-            x=x_vals,
-            y=y_vals,
+            x=cross_tab.index,  # Roles on X-axis
+            y=cross_tab[col],   # Percentages on Y-axis
             name=short_label,
-            orientation='v' if orientation=='v' else 'h',
+            orientation='v',    # Force vertical
             text=text_values,
-            textposition=textposition,
+            textposition='inside',
             textfont=dict(color='white', size=11),
             marker_color=colors[idx % len(colors)],
             marker_line_color='#34495e',
@@ -429,18 +423,16 @@ def create_stacked_bar(df, value_col, title, orientation='v'):
         barmode='stack',
         title=dict(text=title, font=dict(size=16, color='#2c3e50')),
         xaxis=dict(
-            title='Role' if orientation=='v' else 'Percentage of Responses',
-            range=None if orientation=='v' else [0,100],
+            title='Role',
             showline=True,
             linewidth=2,
             linecolor='#34495e',
-            showgrid=False if orientation=='v' else True,
-            gridcolor='#ecf0f1',
-            tickangle=-30 if orientation=='v' else 0
+            showgrid=False,
+            tickangle=-30
         ),
         yaxis=dict(
-            title='Percentage of Responses' if orientation=='v' else 'Role',
-            range=[0,105] if orientation=='v' else None,
+            title='Percentage of Responses',
+            range=[0,105],
             showline=True,
             linewidth=2,
             linecolor='#34495e',
@@ -546,8 +538,8 @@ def create_grouped_bar(df, value_col, title, color_scheme='pastel'):
     
     return fig
 
-# Chart 1: Horizontal Stacked Bar
-st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', '💼 Work Fulfillment Distribution by Role', orientation='h'), use_container_width=True)
+# Chart 1: Vertical Stacked Bar (Work Fulfillment)
+st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', '💼 Work Fulfillment Distribution by Role', orientation='v'), use_container_width=True)
 
 # Chart 2: Grouped Bar Chart with vivid colors (Recognition)
 st.plotly_chart(create_grouped_bar(df, 'Recognition', '🌟 Recognition Distribution by Role (Grouped)', color_scheme='vivid'), use_container_width=True)
