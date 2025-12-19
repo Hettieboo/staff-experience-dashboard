@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import plotly.io as pio
 import textwrap
 
@@ -178,10 +177,10 @@ try:
     # ----------------------
     st.header("Recommendation behaviour")
     st.caption(
-        "See how recommendation scores are distributed and how they differ by role and demographic groups.[file:21]"
+        "Use horizontal bars and stacked bars to show the 0–10 distribution and NPS mix clearly.[file:21]"
     )
 
-    # 1) Distribution 0–10 (this is your existing first chart, kept)
+    # 1) Horizontal bar: recommendation score distribution (0–10)
     if total > 0 and filtered_df[rec_col].notna().any():
         rec_dist = (
             filtered_df[rec_col]
@@ -198,16 +197,17 @@ try:
             labels=["Detractor (0–6)", "Passive (7–8)", "Promoter (9–10)"],
         )
 
-        st.subheader("Recommendation score distribution")
+        st.subheader("Recommendation score distribution (horizontal)")
         st.caption(
-            "Breakdown of scores from 0–10 into detractors, passives, and promoters for the selected filters.[file:21]"
+            "Horizontal bar chart of scores from 0–10, colored by NPS group.[file:21]"
         )
 
         fig_rec_dist = px.bar(
             rec_dist,
-            x="Score",
-            y="Count",
+            y="Score",
+            x="Count",
             color="Group",
+            orientation="h",
             color_discrete_map={
                 "Detractor (0–6)": "#d73027",
                 "Passive (7–8)": "#fee08b",
@@ -216,12 +216,39 @@ try:
             labels={"Count": "Number of responses"},
             template=PLOTLY_TEMPLATE,
         )
-        fig_rec_dist.update_layout(margin=dict(l=20, r=20, t=40, b=40))
+        fig_rec_dist.update_layout(margin=dict(l=80, r=40, t=60, b=40))
         st.plotly_chart(fig_rec_dist, use_container_width=True)
+
+        # 2) Donut chart for overall NPS mix
+        st.subheader("Overall NPS mix (donut)")
+        st.caption("Shows the share of detractors, passives, and promoters among all filtered responses.[file:21]")
+
+        nps_mix = rec_dist.groupby("Group")["Count"].sum().reset_index()
+        nps_mix = nps_mix[nps_mix["Group"].notna()]
+
+        fig_nps_donut = px.pie(
+            nps_mix,
+            names="Group",
+            values="Count",
+            hole=0.5,
+            color="Group",
+            color_discrete_map={
+                "Detractor (0–6)": "#d73027",
+                "Passive (7–8)": "#fee08b",
+                "Promoter (9–10)": "#1a9850",
+            },
+            template=PLOTLY_TEMPLATE,
+        )
+        fig_nps_donut.update_traces(textposition="inside", textinfo="percent+label")
+        fig_nps_donut.update_layout(
+            showlegend=True,
+            margin=dict(l=40, r=40, t=60, b=40),
+        )
+        st.plotly_chart(fig_nps_donut, use_container_width=False)
     else:
         st.info("No recommendation data for the current filters.")
 
-    # 2) Recommendation by role – box + NPS 100% stacked
+    # 3) Stacked horizontal bar: NPS segments by role
     if total > 0 and filtered_df[role_col].notna().any() and filtered_df[rec_col].notna().any():
         tmp = filtered_df[[role_col, rec_col]].dropna().copy()
         tmp["nps_group"] = pd.cut(
@@ -230,30 +257,9 @@ try:
             labels=["Detractor (0–6)", "Passive (7–8)", "Promoter (9–10)"],
         )
 
-        st.subheader("Recommendation scores by role (0–10)")
+        st.subheader("NPS segments by role (stacked bar)")
         st.caption(
-            "Box plot shows the spread of recommendation scores within each role, including medians and outliers.[file:21]"
-        )
-
-        fig_box = px.box(
-            tmp,
-            x=role_col,
-            y=rec_col,
-            points="all",
-            color_discrete_sequence=PRIMARY_SEQ,
-            template=PLOTLY_TEMPLATE,
-        )
-        fig_box.update_layout(
-            xaxis_title="Role",
-            yaxis_title="Score (0–10)",
-            xaxis_tickangle=30,
-            margin=dict(l=40, r=40, t=60, b=120),
-        )
-        st.plotly_chart(fig_box, use_container_width=True)
-
-        st.subheader("NPS segments by role")
-        st.caption(
-            "100% stacked bar shows the share of detractors, passives, and promoters in each role.[file:21]"
+            "100% stacked horizontal bar shows the share of detractors, passives, and promoters in each role.[file:21]"
         )
 
         nps_ct = pd.crosstab(tmp[role_col], tmp["nps_group"])
@@ -280,17 +286,18 @@ try:
         fig_nps_stack.update_layout(
             xaxis_tickformat=".0%",
             margin=dict(l=250, r=40, t=60, b=40),
+            yaxis=dict(automargin=True),
         )
         st.plotly_chart(fig_nps_stack, use_container_width=True)
 
     st.markdown("---")
 
     # ----------------------
-    # Ethnicity & recommendation (simplified)
+    # Ethnicity & recommendation (horizontal bar)
     # ----------------------
-    st.header("Recommendation by identity")
+    st.header("Recommendation by ethnic identity")
     st.caption(
-        "Focus on the most common ethnic identities to keep labels readable while still showing equity patterns.[file:21]"
+        "Horizontal bar for top ethnic identities by average recommendation; avoids overcrowding and keeps labels legible.[file:21]"
     )
 
     if total > 0 and filtered_df[ethnicity_col].notna().any() and filtered_df[rec_col].notna().any():
@@ -310,8 +317,7 @@ try:
         counts.columns = ["ethnicity_split", "Count"]
 
         eth_avg = eth_avg.merge(counts, on="ethnicity_split")
-        # keep only identities with reasonable sample size; then top 10 by count
-        eth_avg = eth_avg[eth_avg["Count"] >= 3]  # tweak threshold as needed
+        eth_avg = eth_avg[eth_avg["Count"] >= 3]  # filter for reasonable N
         eth_top = (
             eth_avg.sort_values("Count", ascending=False)
             .head(10)
@@ -322,7 +328,7 @@ try:
 
         st.subheader("Top 10 ethnic identities by recommendation")
         st.caption(
-            "Average recommendation score (0–10) for the most common identities (sample ≥ 3 respondents).[file:21]"
+            "Average recommendation score (0–10) for the most common identities (sample ≥ 3).[file:21]"
         )
 
         fig_eth = px.bar(
@@ -348,14 +354,13 @@ try:
     st.markdown("---")
 
     # ----------------------
-    # Recognition & growth: Likert 100% stacked (by role)
+    # Recognition & growth: 100% stacked horizontal bars (Likert)
     # ----------------------
     st.header("Recognition and growth perceptions")
     st.caption(
-        "Agreement-style questions are best shown as 100% stacked bars, ordered from negative to positive responses.[file:21]"
+        "Recognition and growth are Likert questions, shown as 100% stacked horizontal bars by role.[file:21]"
     )
 
-    # Recognition categories ordered from negative to positive
     recog_order = [
         "I don't feel recognized and acknowledged but I prefer it that way",
         "I don't feel recognized and acknowledged and would prefer staff successes to be highlighted",
@@ -374,7 +379,7 @@ try:
 
     col_left, col_right = st.columns(2)
 
-    # Recognition Likert bar
+    # Recognition stacked bar
     with col_left:
         st.subheader("Recognition (Likert) by role")
         st.caption(
@@ -386,7 +391,6 @@ try:
             rec[recog_col] = pd.Categorical(rec[recog_col], categories=recog_order, ordered=True)
 
             rec_ct = pd.crosstab(rec[role_col], rec[recog_col])
-            # keep only columns actually present
             present_rec_cols = [c for c in recog_order if c in rec_ct.columns]
             rec_ct = rec_ct[present_rec_cols]
 
@@ -415,7 +419,7 @@ try:
         else:
             st.info("No recognition data for the current filters.")
 
-    # Growth Likert bar
+    # Growth stacked bar
     with col_right:
         st.subheader("Growth potential (Likert) by role")
         st.caption(
@@ -456,7 +460,7 @@ try:
             st.info("No growth data for the current filters.")
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Cross-Analysis Dashboard – Likert & NPS view**")
+    st.sidebar.markdown("**Cross-Analysis Dashboard – Bar & Donut view**")
 
 except FileNotFoundError:
     st.error("❌ File not found: 'Combined- Cross Analysis.xlsx'")
