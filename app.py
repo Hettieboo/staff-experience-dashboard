@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # Page config
 st.set_page_config(page_title="Homes First Survey Dashboard", layout="wide")
@@ -13,9 +12,7 @@ st.markdown("""
     .main-title {
         font-size: 2.5rem;
         font-weight: bold;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #1f77b4;
         text-align: center;
         margin-bottom: 2rem;
     }
@@ -26,7 +23,6 @@ st.markdown("""
         color: white;
         text-align: center;
         margin-bottom: 1rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     .metric-value {
         font-size: 2.5rem;
@@ -35,17 +31,6 @@ st.markdown("""
     .metric-label {
         font-size: 1rem;
         opacity: 0.9;
-    }
-    .section-header {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 5px;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-    }
-    /* Remove extra padding */
-    .block-container {
-        padding-top: 2rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -67,25 +52,19 @@ df = load_data()
 st.markdown('<div class="main-title">Homes First Employee Survey Dashboard</div>', unsafe_allow_html=True)
 
 # Sidebar filters
-st.sidebar.header("🔍 Filters")
-st.sidebar.markdown("---")
+st.sidebar.header("Filters")
 
 # Role filter
 roles = ['All'] + sorted(df['Role'].unique().tolist())
-role_filter = st.sidebar.selectbox("👥 Role", roles)
+role_filter = st.sidebar.selectbox("Role", roles)
 
 # Ethnicity filter
 ethnicities = ['All'] + sorted(df['Ethnicity'].unique().tolist())
-ethnicity_filter = st.sidebar.selectbox("🌍 Ethnicity", ethnicities)
+ethnicity_filter = st.sidebar.selectbox("Ethnicity", ethnicities)
 
 # Disability filter
 disabilities = ['All'] + sorted(df['Disability'].unique().tolist())
-disability_filter = st.sidebar.selectbox("♿ Disability", disabilities)
-
-# Add info about filters
-if role_filter != 'All' or ethnicity_filter != 'All' or disability_filter != 'All':
-    st.sidebar.markdown("---")
-    st.sidebar.info("🔎 Filters are active. Click 'All' to reset.")
+disability_filter = st.sidebar.selectbox("Disability", disabilities)
 
 # Apply filters
 filtered_df = df.copy()
@@ -170,20 +149,15 @@ def shorten_role(role):
     return role_mapping.get(role, role)
 
 # Helper function to shorten answer text
-def shorten_text(text, max_length=50):
+def shorten_text(text, max_length=60):
     """Shorten long text for legends"""
     if len(text) <= max_length:
         return text
-    # Smart truncation - try to break at word boundary
-    truncated = text[:max_length-3]
-    last_space = truncated.rfind(' ')
-    if last_space > max_length * 0.7:  # If we can find a space in the last 30%
-        truncated = truncated[:last_space]
-    return truncated + '...'
+    return text[:max_length-3] + '...'
 
 # Helper function for stacked bar charts
 def create_stacked_bar(df, value_col, title):
-    # Get top 8 roles by count
+    # Get top 8 roles by count (reduced from 10 for better readability)
     role_counts = df['Role'].value_counts().head(8)
     top_roles = role_counts.index.tolist()
     df_filtered = df[df['Role'].isin(top_roles)]
@@ -201,8 +175,8 @@ def create_stacked_bar(df, value_col, title):
     # Create figure
     fig = go.Figure()
     
-    # Define a better color palette
-    colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0']
+    # Define a color palette
+    colors = px.colors.qualitative.Set3
     
     for idx, col in enumerate(cross_tab.columns):
         # Only show percentage if > 5% to avoid clutter
@@ -214,25 +188,21 @@ def create_stacked_bar(df, value_col, title):
                 text_values.append('')
         
         fig.add_trace(go.Bar(
-            name=shorten_text(col, 45),
+            name=shorten_text(col, 50),
             y=cross_tab.index,
             x=cross_tab[col],
             orientation='h',
             text=text_values,
             textposition='inside',
-            textfont=dict(size=10, color='white'),
-            marker_color=colors[idx % len(colors)],
-            hovertemplate='<b>%{y}</b><br>' +
-                         shorten_text(col, 45) + ': %{x:.1f}%<br>' +
-                         '<extra></extra>'
+            marker_color=colors[idx % len(colors)]
         ))
     
-    # Calculate dynamic height
+    # Calculate dynamic height - more space per role
     n_roles = len(cross_tab)
     chart_height = max(500, 60 * n_roles + 200)
     
     fig.update_layout(
-        title=dict(text=title, font=dict(size=18, color='#333')),
+        title=dict(text=title, font=dict(size=16)),
         barmode='stack',
         xaxis_title='Percentage (%)',
         yaxis_title='',
@@ -244,28 +214,22 @@ def create_stacked_bar(df, value_col, title):
             y=1,
             xanchor="left",
             x=1.02,
-            font=dict(size=10),
-            bgcolor='rgba(255,255,255,0.8)',
-            bordercolor='#ddd',
-            borderwidth=1
+            font=dict(size=11)
         ),
-        margin=dict(l=200, r=280, t=80, b=80),
+        margin=dict(l=200, r=250, t=80, b=80),  # More margins for text
         yaxis=dict(
             tickfont=dict(size=12),
             automargin=True
         ),
         xaxis=dict(
-            tickfont=dict(size=11),
-            range=[0, 100]
-        ),
-        plot_bgcolor='rgba(240,242,246,0.5)',
-        paper_bgcolor='white'
+            tickfont=dict(size=11)
+        )
     )
     
     return fig
 
 # SECTION A: RECOMMENDATION SCORE
-st.markdown('<div class="section-header"><h2>📊 How likely are you to recommend Homes First as a good place to work?</h2></div>', unsafe_allow_html=True)
+st.header("How likely are you to recommend Homes First as a good place to work?")
 
 col1, col2 = st.columns([1, 1])
 
@@ -279,35 +243,16 @@ with col1:
     score_dist = all_scores.merge(score_dist, on='Score', how='left').fillna(0)
     score_dist['Count'] = score_dist['Count'].astype(int)
     
-    # Color scale based on score
-    colors_scale = []
-    for score in score_dist['Score']:
-        if score <= 3:
-            colors_scale.append('#ef5350')
-        elif score <= 6:
-            colors_scale.append('#ffa726')
-        elif score <= 8:
-            colors_scale.append('#66bb6a')
-        else:
-            colors_scale.append('#42a5f5')
-    
-    fig1 = go.Figure(go.Bar(
-        x=score_dist['Count'],
-        y=score_dist['Score'],
-        orientation='h',
-        marker_color=colors_scale,
-        text=score_dist['Count'],
-        textposition='outside',
-        hovertemplate='<b>Score %{y}</b><br>Count: %{x}<extra></extra>'
-    ))
-    
+    fig1 = px.bar(score_dist, x='Count', y='Score', orientation='h',
+                  title='Recommendation Score Distribution (0-10)',
+                  labels={'Count': 'Count', 'Score': 'Score'},
+                  color='Count',
+                  color_continuous_scale='Blues')
     fig1.update_layout(
-        title=dict(text='Recommendation Score Distribution (0-10)', font=dict(size=16)),
-        height=500,
-        yaxis=dict(dtick=1, tickfont=dict(size=12), title='Score'),
-        xaxis=dict(tickfont=dict(size=11), title='Count of Responses'),
-        plot_bgcolor='rgba(240,242,246,0.5)',
-        paper_bgcolor='white'
+        height=500, 
+        yaxis=dict(dtick=1, tickfont=dict(size=12)),
+        xaxis=dict(tickfont=dict(size=11)),
+        showlegend=False
     )
     st.plotly_chart(fig1, use_container_width=True)
 
@@ -318,65 +263,51 @@ with col2:
     band_counts = band_counts.reindex(band_order, fill_value=0)
     
     fig2 = go.Figure(data=[go.Pie(
-        labels=['Detractors (0-3)', 'Passive (4-6)', 'Promoters (7-8)', 'Strong Promoters (9-10)'],
+        labels=band_counts.index,
         values=band_counts.values,
-        hole=0.5,
+        hole=0.4,
         textinfo='label+percent',
-        textfont=dict(size=12),
-        marker=dict(
-            colors=['#ef5350', '#ffa726', '#66bb6a', '#42a5f5'],
-            line=dict(color='white', width=2)
-        ),
-        hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+        textfont=dict(size=14),
+        marker=dict(colors=['#ef5350', '#ffa726', '#66bb6a', '#42a5f5'])
     )])
-    
-    # Add annotation in the center
-    total = band_counts.sum()
-    fig2.add_annotation(
-        text=f'<b>{total}</b><br>Total<br>Responses',
-        x=0.5, y=0.5,
-        font=dict(size=16, color='#333'),
-        showarrow=False
-    )
-    
     fig2.update_layout(
         title=dict(text='Recommendation Score Bands', font=dict(size=16)),
         height=500,
         showlegend=True,
-        legend=dict(font=dict(size=11), orientation='v')
+        legend=dict(font=dict(size=12))
     )
     st.plotly_chart(fig2, use_container_width=True)
 
 # 3. 100% stacked horizontal bar - score bands by Role
-st.subheader("📈 Score Bands by Role (Top 8 Roles)")
-fig3 = create_stacked_bar(filtered_df, 'Score_Band', 'Recommendation Score Distribution by Role')
+st.subheader("Recommendation Score Bands by Role (Top 8 Roles)")
+fig3 = create_stacked_bar(filtered_df, 'Score_Band', 'Score Bands by Role')
 st.plotly_chart(fig3, use_container_width=True)
 
 st.markdown("---")
 
 # SECTION B: WORK FULFILLMENT
-st.markdown('<div class="section-header"><h2>💼 How fulfilling and rewarding do you find your work?</h2></div>', unsafe_allow_html=True)
-fig4 = create_stacked_bar(filtered_df, 'Work_Fulfillment', 'Work Fulfillment Distribution by Role')
+st.header("How fulfilling and rewarding do you find your work?")
+fig4 = create_stacked_bar(filtered_df, 'Work_Fulfillment', 'Work Fulfillment by Role (Top 8 Roles)')
 st.plotly_chart(fig4, use_container_width=True)
 
 st.markdown("---")
 
 # SECTION C: RECOGNITION
-st.markdown('<div class="section-header"><h2>🏆 Do you feel you get acknowledged and recognized for your contribution at work?</h2></div>', unsafe_allow_html=True)
-fig5 = create_stacked_bar(filtered_df, 'Recognition', 'Recognition Sentiment by Role')
+st.header("Do you feel you get acknowledged and recognized for your contribution at work?")
+fig5 = create_stacked_bar(filtered_df, 'Recognition', 'Recognition by Role (Top 8 Roles)')
 st.plotly_chart(fig5, use_container_width=True)
 
 st.markdown("---")
 
 # SECTION D: GROWTH POTENTIAL
-st.markdown('<div class="section-header"><h2>📈 Do you feel there is potential for growth at Homes First?</h2></div>', unsafe_allow_html=True)
-fig6 = create_stacked_bar(filtered_df, 'Growth_Potential', 'Growth Potential Perception by Role')
+st.header("Do you feel there is potential for growth at Homes First?")
+fig6 = create_stacked_bar(filtered_df, 'Growth_Potential', 'Growth Potential by Role (Top 8 Roles)')
 st.plotly_chart(fig6, use_container_width=True)
 
 st.markdown("---")
 
-# SECTION E: CONTEXT CHARTS - IMPROVED SIDE BY SIDE
-st.markdown('<div class="section-header"><h2>👥 Respondent Demographics</h2></div>', unsafe_allow_html=True)
+# SECTION E: CONTEXT CHARTS - IMPROVED WITH TABS
+st.header("Context: Ethnicity and Disability")
 
 # Create tabs for better organization
 tab1, tab2 = st.tabs(["🌍 Ethnicity Breakdown", "♿ Disability Breakdown"])
@@ -393,6 +324,8 @@ with tab1:
             # Shorten by removing parenthetical details
             if '(' in e:
                 short = e.split('(')[0].strip()
+            else:
+                short = e[:57] + '...'
         ethnicity_display[e] = short
     
     ethnicity_labels = [ethnicity_display[e] for e in ethnicity_counts.index]
@@ -409,11 +342,12 @@ with tab1:
         ),
         text=ethnicity_counts.values,
         textposition='outside',
-        hovertemplate='<b>%{y}</b><br>Count: %{x}<extra></extra>'
+        hovertext=[f"{e}<br>Count: {c}" for e, c in zip(ethnicity_counts.index, ethnicity_counts.values)],
+        hoverinfo='text'
     ))
     
     fig7.update_layout(
-        title=dict(text=f'Ethnicity Distribution (Top 15, Total: {len(filtered_df)} Responses)', font=dict(size=16)),
+        title=dict(text=f'Ethnicity Distribution (Showing Top 15 of {len(filtered_df)} Total Responses)', font=dict(size=16)),
         xaxis_title='Number of Responses',
         yaxis_title='',
         height=max(500, 40 * len(ethnicity_counts) + 150),
@@ -425,15 +359,14 @@ with tab1:
     )
     st.plotly_chart(fig7, use_container_width=True)
     
-    # Add download option
-    if st.button("📥 Download Full Ethnicity Data"):
-        csv = filtered_df['Ethnicity'].value_counts().to_csv()
-        st.download_button(
-            label="Download CSV",
-            data=csv,
-            file_name="ethnicity_data.csv",
-            mime="text/csv"
-        )
+    # Show summary statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Unique Ethnicities", len(filtered_df['Ethnicity'].unique()))
+    with col2:
+        st.metric("Most Common", ethnicity_display[ethnicity_counts.index[0]])
+    with col3:
+        st.metric("Top Category Count", int(ethnicity_counts.values[0]))
 
 with tab2:
     # Disability counts
@@ -461,11 +394,12 @@ with tab2:
         ),
         text=disability_counts.values,
         textposition='outside',
-        hovertemplate='<b>%{y}</b><br>Count: %{x}<extra></extra>'
+        hovertext=[f"{d}<br>Count: {c}" for d, c in zip(disability_counts.index, disability_counts.values)],
+        hoverinfo='text'
     ))
     
     fig8.update_layout(
-        title=dict(text=f'Disability Status Distribution (Top 15, Total: {len(filtered_df)} Responses)', font=dict(size=16)),
+        title=dict(text=f'Disability Status Distribution (Showing Top 15 of {len(filtered_df)} Total Responses)', font=dict(size=16)),
         xaxis_title='Number of Responses',
         yaxis_title='',
         height=max(500, 40 * len(disability_counts) + 150),
@@ -477,21 +411,21 @@ with tab2:
     )
     st.plotly_chart(fig8, use_container_width=True)
     
-    # Add download option
-    if st.button("📥 Download Full Disability Data"):
-        csv = filtered_df['Disability'].value_counts().to_csv()
-        st.download_button(
-            label="Download CSV",
-            data=csv,
-            file_name="disability_data.csv",
-            mime="text/csv"
-        )
+    # Show summary statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Unique Categories", len(filtered_df['Disability'].unique()))
+    with col2:
+        no_disability = len(filtered_df[filtered_df['Disability'].str.contains('do not identify', case=False, na=False)])
+        st.metric("No Disability", no_disability)
+    with col3:
+        with_disability = len(filtered_df) - no_disability
+        st.metric("With Disability", with_disability)
 
 # Add footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666; padding: 2rem;'>
-    <p>📊 Dashboard created for Homes First Society • Data represents employee survey responses</p>
-    <p style='font-size: 0.9rem;'>Use filters in the sidebar to drill down into specific demographics</p>
+<div style='text-align: center; color: #666; padding: 1rem;'>
+    <p style='font-size: 0.9rem;'>📊 Homes First Employee Survey Dashboard | Use filters in the sidebar to explore specific segments</p>
 </div>
 """, unsafe_allow_html=True)
