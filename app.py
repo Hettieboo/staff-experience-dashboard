@@ -328,7 +328,7 @@ with tab3:
     st.markdown("- Roles with high fulfillment but low growth perception may need career development programs")
     st.markdown("- Roles with low recognition should be prioritized for acknowledgment initiatives")
 
-# ------------------- STACKED BARS -------------------
+# ------------------- VARIED CHART TYPES -------------------
 st.markdown("## 🏗 Response Distribution by Role")
 
 def create_stacked_bar(df, value_col, title, orientation='h'):
@@ -377,13 +377,14 @@ def create_stacked_bar(df, value_col, title, orientation='h'):
         ),
         yaxis=dict(
             title='Role' if orientation=='h' else 'Percentage of Responses',
+            range=[0,100] if orientation=='v' else None,
             showline=True,
             linewidth=2,
             linecolor='#34495e',
             showgrid=True,
             gridcolor='#ecf0f1'
         ),
-        height=max(500, 60*len(cross_tab)+150),
+        height=max(500, 60*len(cross_tab)+150) if orientation=='h' else 600,
         margin=dict(l=200, r=50, t=100, b=150),
         legend=dict(
             title='Response',
@@ -402,9 +403,74 @@ def create_stacked_bar(df, value_col, title, orientation='h'):
     
     return fig
 
+def create_grouped_bar(df, value_col, title):
+    """Create grouped bar chart for comparison"""
+    role_counts = df['Role'].value_counts().head(6)
+    top_roles = role_counts.index.tolist()
+    df_filtered_local = df[df['Role'].isin(top_roles)]
+    df_filtered_local['Role_Short'] = df_filtered_local['Role'].apply(shorten_role)
+    cross_tab = pd.crosstab(df_filtered_local['Role_Short'], df_filtered_local[value_col], normalize='index')*100
+    
+    fig = go.Figure()
+    colors = px.colors.qualitative.Pastel
+    
+    for idx, col in enumerate(cross_tab.columns):
+        fig.add_trace(go.Bar(
+            x=cross_tab.index,
+            y=cross_tab[col],
+            name=shorten_text(str(col), 25),
+            text=[f'{v:.1f}%' if v>3 else '' for v in cross_tab[col]],
+            textposition='outside',
+            marker_color=colors[idx % len(colors)],
+            marker_line_color='#34495e',
+            marker_line_width=1.5
+        ))
+    
+    fig.update_layout(
+        barmode='group',
+        title=dict(text=title, font=dict(size=16, color='#2c3e50')),
+        xaxis=dict(
+            title='Role',
+            showline=True,
+            linewidth=2,
+            linecolor='#34495e',
+            showgrid=False,
+            tickangle=-30
+        ),
+        yaxis=dict(
+            title='Percentage of Responses',
+            range=[0,110],
+            showline=True,
+            linewidth=2,
+            linecolor='#34495e',
+            showgrid=True,
+            gridcolor='#ecf0f1'
+        ),
+        height=550,
+        margin=dict(l=100, r=50, t=100, b=150),
+        legend=dict(
+            title='Response',
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='#34495e',
+            borderwidth=1
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='#f8f9fa'
+    )
+    
+    fig.update_xaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+    fig.update_yaxes(mirror=True, ticks='outside', showline=True, linecolor='#34495e', linewidth=2)
+    
+    return fig
+
+# Chart 1: Horizontal Stacked Bar
 st.plotly_chart(create_stacked_bar(df, 'Work_Fulfillment', '💼 Work Fulfillment Distribution by Role', orientation='h'), use_container_width=True)
-st.plotly_chart(create_stacked_bar(df, 'Recognition', '🌟 Recognition Distribution by Role', orientation='h'), use_container_width=True)
-st.plotly_chart(create_stacked_bar(df, 'Growth_Potential', '📈 Growth Potential Distribution by Role', orientation='h'), use_container_width=True)
+
+# Chart 2: Vertical Stacked Bar (Different style)
+st.plotly_chart(create_stacked_bar(df, 'Recognition', '🌟 Recognition Distribution by Role', orientation='v'), use_container_width=True)
+
+# Chart 3: Grouped Bar Chart (Side-by-side comparison)
+st.plotly_chart(create_grouped_bar(df, 'Growth_Potential', '📈 Growth Potential Distribution by Role (Grouped)'), use_container_width=True)
 
 # 🔹 Stacked Bar Insights
 role_scores = df_insights.groupby('Role')['Recommendation_Score'].mean().sort_values()
