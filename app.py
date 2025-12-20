@@ -47,7 +47,7 @@ def load_data():
 df = load_data()
 
 # ================= TITLE =================
-st.markdown('<div class="main-title">Imaginary Employee Survey Dashboard</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">Employee Survey Dashboard</div>', unsafe_allow_html=True)
 
 # ================= SIDEBAR FILTERS =================
 st.sidebar.header("Filters")
